@@ -450,7 +450,6 @@ a pull request. Make sure to follow the existing code style and add appropriate 
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-
 > [!IMPORTANT]
 > ## DISCLAIMER
 > I HOLD NO RESPONSIBILITY FOR ANY DAMAGES OR DATALOSS DONE BY THIS > PACKAGE. >YOU ARE RESPONSIBLE FOR YOUR DATA!
