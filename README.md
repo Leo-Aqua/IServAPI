@@ -399,7 +399,7 @@ Marks a specified Message as read. Note: notification_id can be returned from ge
 
 
 ```python
-send_email(self, receiver_email:str, subject:str, body:str, smtp_server:str=None, smtps_port:int=465, sender_name:str=None, attachments:list=None, sender_email:str=None)
+send_email(receiver_email:str, subject:str, body:str, smtp_server:str=None, smtps_port:int=465, sender_name:str=None, attachments:list=None, sender_email:str=None)
 ```
 
 Sends an email. Note all variables defaulting to none get defined later so don't worry.
