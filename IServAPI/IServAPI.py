@@ -29,7 +29,7 @@ class IServAPI:
         self.__DAVclient = None
         self.__login()
 
-    def setup_logging(log_file):
+    def setup_logging(self, log_file="app.log"):
         """
         Set up a logger with a rotating file handler.
         
