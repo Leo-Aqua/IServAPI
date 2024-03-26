@@ -2,6 +2,12 @@
 
 This Python module allows you to interact with IServ school servers using only login data for authentication. No API key is required.
 
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/Leo-Aqua/IServAPI) ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/Leo-Aqua/IServAPI/total?label=GitHub%20Downloads)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/IServAPI)![PyPI - Downloads](https://img.shields.io/pypi/dd/IServAPI?label=PyPi%20Downloads)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/IServAPI)![PyPI - Wheel](https://img.shields.io/pypi/wheel/IServAPI)![GitHub repo size](https://img.shields.io/github/repo-size/Leo-Aqua/IServAPI)![PyPI - Version](https://img.shields.io/pypi/v/IServAPI)![GitHub Repo stars](https://img.shields.io/github/stars/Leo-Aqua/IServAPI)
+
+
+
 ## Installation
 
 You can install the IServ Python module using pip:
@@ -343,11 +349,20 @@ client.upload_async(**kwargs)
 
 For further informations visit [CloudPolis/webdav-client-python](https://github.com/CloudPolis/webdav-client-python)
 
+### Logging
+
+Add this
+```python
+IServAPI.setup_logging("app.log")
+```
+after your `from IServAPI.IServAPI import IServAPI`
 
 
 ### To-Do List
 
-- Add propper To-Do List
+- add search users
+
+- more functionality
 
 
 ## Contribution
