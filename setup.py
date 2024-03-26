@@ -10,7 +10,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="IServAPI",
-    version="v0.1.6",
+    version="v0.1.7",
     author="Leo Aqua",
     author_email="contact@leoaqua.de",
     description="Unofficial API for IServ",
@@ -18,12 +18,13 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Leo-Aqua/IServAPI",
     keywords=["IServ", "IServAPI", "iserv api", "iserv-api", "API", "Leo-Aqua"],
-    packages=["IServAPI"],
     install_requires=[
         "requests",
         "beautifulsoup4",
         "lxml",
-        "webdavclient"
+        "webdavclient",
+        "pandas",
+        "html5lib"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

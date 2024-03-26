@@ -30,9 +30,42 @@ user_info = iserv.get_own_user_info()
 print(user_info)
 ```
 
+## List of functions
+
+- [Unofficial IServ API](#unofficial-iserv-api)
+  - [Installation](#installation)
+  - [Basic usage](#basic-usage)
+  - [List of functions](#list-of-functions)
+  - [Supported Functionality](#supported-functionality)
+    - [Get own User Information](#get-own-user-information)
+    - [2. Set own User Information](#2-set-own-user-information)
+    - [3. Get user avatar](#3-get-user-avatar)
+    - [4. Get emails](#4-get-emails)
+    - [5. Search users](#5-search-users)
+    - [6. Search users autocomplete](#6-search-users-autocomplete)
+    - [7. Fetch notifications](#7-fetch-notifications)
+    - [8. Get general Information about emails](#8-get-general-information-about-emails)
+    - [9. Get email source](#9-get-email-source)
+    - [10. Get all mail folders](#10-get-all-mail-folders)
+    - [11. Get upcoming events](#11-get-upcoming-events)
+    - [12. Get all eventsources](#12-get-all-eventsources)
+    - [13. Get conference health](#13-get-conference-health)
+    - [14. Get badges](#14-get-badges)
+    - [15. Files](#15-files)
+    - [16. Read all notifications](#16-read-all-notifications)
+    - [17. Read a specific Notification](#17-read-a-specific-notification)
+    - [18. Send Email](#18-send-email)
+    - [19. Get other users information](#19-get-other-users-information)
+    - [Logging](#logging)
+    - [To-Do List](#to-do-list)
+  - [Contribution](#contribution)
+  - [License](#license)
+
+
+
 ## Supported Functionality
 
-### 1. Get own User Information
+### Get own User Information
 
 ```python
 user_info = get_own_user_info()
@@ -111,10 +144,10 @@ Retrieves emails from a specified path with optional parameters for length, star
 ### 5. Search users
 
 ```python
-search_users()
+search_users(query)
 ```
 
-**NOT YET IMPLEMENTED**
+
 
 ### 6. Search users autocomplete
 
@@ -350,6 +383,47 @@ client.upload_async(**kwargs)
 
 For further informations visit [CloudPolis/webdav-client-python](https://github.com/CloudPolis/webdav-client-python)
 
+
+### 16. Read all notifications
+
+```python
+read_all_notifications()
+```
+
+Marks all Notification as read.
+
+
+### 17. Read a specific Notification
+
+
+```python
+read_notifiaction(notification_id)
+```
+
+Marks a specified Message as read. Note: notification_id can be returned from get_notifications()
+
+
+### 18. Send Email
+
+
+```python
+send_email(self, receiver_email:str, subject:str, body:str, smtp_server:str=None, smtps_port:int=465, sender_name:str=None, attachments:list=None, sender_email:str=None)
+```
+
+Sends an email. Note all variables defaulting to none get defined later so don't worry.
+
+sender_email must be a valid name present in the iserv network.
+
+
+### 19. Get other users information
+
+
+```python
+get_user_info(user)
+```
+
+Get someone else's public information this includes everything they heve set in 'Personal Information'
+
 ### Logging
 
 Add this
@@ -376,6 +450,7 @@ a pull request. Make sure to follow the existing code style and add appropriate 
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## DISCLAIMER
 
-I HOLD NO RESPONSIBILITY FOR ANY DAMAGES OR DATALOSS DONE BY THIS PACKAGE. YOU ARE RESPONSIBLE FOR YOUR DATA!
+> [!IMPORTANT]
+> ## DISCLAIMER
+> I HOLD NO RESPONSIBILITY FOR ANY DAMAGES OR DATALOSS DONE BY THIS > PACKAGE. >YOU ARE RESPONSIBLE FOR YOUR DATA!
