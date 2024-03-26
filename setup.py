@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-from setuptools_scm import get_version
+
 
 
 
@@ -10,7 +10,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="IServAPI",
-    version=get_version(),
+    version="v0.1.4",
     author="Leo Aqua",
     author_email="contact@leoaqua.de",
     description="Unofficial API for IServ",
