@@ -1,9 +1,10 @@
 from setuptools import setup, find_packages
+from setuptools_scm import get_version
+
+
 import subprocess
 import os
 
-remote_verion = subprocess.run(['git', 'describe', '--tags'], stdout=subprocess.PIPE).stdout.decode('utf8').strip()
-assert "." in remote_verion
 
 
 with open("README.md", "r") as fh:
@@ -11,7 +12,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="IServAPI",
-    version=remote_verion,
+    version=get_version(),
     author="Leo Aqua",
     author_email="contact@leoaqua.de",
     description="Unofficial API for IServ",
