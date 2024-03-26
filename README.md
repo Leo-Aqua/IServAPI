@@ -20,13 +20,14 @@ pip install IServAPI
 ## Basic usage
 
 ```python
-from IServAPI.IServAPI import IServAPI
+from IServAPI import IServAPI
 
 # Initialize IServ instance with login credentials
-iserv = IServAPI(username="YOUR_ISERV_USERNAME",password="YOUR_ISERV_PASSWORD", iserv_url="some_iserv_url.de")
+api = IServAPI(username="YOUR_ISERV_USERNAME",password="YOUR_ISERV_PASSWORD", iserv_url="some_iserv_url.de")
 
 # Example: Get the current user's information
-user_info = iserv.get_own_user_info()
+user_info = api.get_own_user_info()
+
 print(user_info)
 ```
 
