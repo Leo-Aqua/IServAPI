@@ -2,20 +2,4 @@
 requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.poetry]
-name = "IServAPI"
-version = "0.1.0"
-description = "Unofficial API for IServ"
-authors = ["Leo Aqua <contact@leoaqua.de>"]
 
-[tool.poetry.dependencies]
-python = "^3.6"
-requests = "*"
-beautifulsoup4 = "*"
-lxml = "*"
-webdavclient = "*"
-
-[tool.poetry.dev-dependencies]
-
-[tool.poetry.scripts]
-iserv-api = "iserv:main"
