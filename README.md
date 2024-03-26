@@ -3,8 +3,9 @@
 This Python module allows you to interact with IServ school servers using only login data for authentication. No API key is required.
 
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/Leo-Aqua/IServAPI) ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/Leo-Aqua/IServAPI/total?label=GitHub%20Downloads)
-![PyPI - Downloads](https://img.shields.io/pypi/dm/IServAPI)![PyPI - Downloads](https://img.shields.io/pypi/dd/IServAPI?label=PyPi%20Downloads)
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/IServAPI)![PyPI - Wheel](https://img.shields.io/pypi/wheel/IServAPI)![GitHub repo size](https://img.shields.io/github/repo-size/Leo-Aqua/IServAPI)![PyPI - Version](https://img.shields.io/pypi/v/IServAPI)![GitHub Repo stars](https://img.shields.io/github/stars/Leo-Aqua/IServAPI)
+ ![PyPI - Downloads](https://img.shields.io/pypi/dd/IServAPI?label=PyPi%20Downloads)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/IServAPI) ![PyPI - Wheel](https://img.shields.io/pypi/wheel/IServAPI) ![GitHub repo size](https://img.shields.io/github/repo-size/Leo-Aqua/IServAPI) ![PyPI - Version](https://img.shields.io/pypi/v/IServAPI?label=version)
+![GitHub Repo stars](https://img.shields.io/github/stars/Leo-Aqua/IServAPI)
 
 
 
