@@ -10,7 +10,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="IServAPI",
-    version="v0.1.4",
+    version="v0.1.5",
     author="Leo Aqua",
     author_email="contact@leoaqua.de",
     description="Unofficial API for IServ",
