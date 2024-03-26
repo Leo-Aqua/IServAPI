@@ -352,8 +352,14 @@ For further informations visit [CloudPolis/webdav-client-python](https://github.
 
 ## Contribution
 
-Contributions are welcome! If you'd like to contribute to this project, please fork the repository and submit a pull request. Make sure to follow the existing code style and add appropriate tests for new functionality.
+Contributions are welcome! If you'd like to contribute to this project, please fork the repository and submit
+
+a pull request. Make sure to follow the existing code style and add appropriate tests for new functionality.
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## DISCLAIMER
+
+I HOLD NO RESPONSIBILITY FOR ANY DAMAGES OR DATALOSS DONE BY THIS PACKAGE. YOU ARE RESPONSIBLE FOR YOUR DATA!
