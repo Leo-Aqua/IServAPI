@@ -5,3 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "IServAPI"
 dynamic = ["version", "dependencies"]
+description = "Unofficial API for IServ"
+readme = "README.md"
+authors = [
+  { name="Leo Aqua", email="contact@leoaqua.de" },
+]
+keywords = ["IServ", "IServAPI", "iserv api", "iserv-api", "API", "Leo-Aqua"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent"
+]
