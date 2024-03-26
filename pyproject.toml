@@ -4,4 +4,4 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "IServAPI"
-dynamic = ["version"]
+dynamic = ["version", "dependencies"]
