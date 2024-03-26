@@ -1,11 +1,7 @@
 from setuptools import setup, find_packages
-import os
-os.system("pip install setuptools_scm")
 from setuptools_scm import get_version
 
 
-import subprocess
-import os
 
 
 
