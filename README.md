@@ -427,10 +427,11 @@ after your `from IServAPI.IServAPI import IServAPI`
 
 ### To-Do List
 
-- add search users
+- [x] add search users
 
-- more functionality
+- [x] more functionality
 
+- [ ] make wiki
 
 ## Contribution
 
