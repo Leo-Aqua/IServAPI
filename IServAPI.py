@@ -13,6 +13,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 import pandas as pd
 from io import StringIO
+import os
 
 class IServAPI:
     def __init__(self, username, password, iserv_url):
@@ -34,7 +35,7 @@ class IServAPI:
         self.__DAVclient = None
         self.__login()
 
-    def setup_logging(self, log_file="app.log"):
+    def setup_logging(log_file="app.log"):
         """
         Set up a logger with a rotating file handler.
         
@@ -748,27 +749,35 @@ class IServAPI:
             logging.error("Exception at file (webdav): " + str(e))
             raise ValueError("Exception at file (webdav): " + str(e))
     
-    def send_email(self, receiver_email:str, subject:str, body:str, smtp_server:str=None, smtps_port:int=465, sender_name:str=None, attachments:list=None, sender_email:str=None):
+    def send_email(self, receiver_email:str, subject:str, body:str, html_body:str=None, smtp_server:str=None, smtps_port:int=465, sender_name:str=None, attachments:list=None, sender_email:str=None):
         """
-        Sends an email to the specified receiver with the given subject and body.
-        Note: All variables defaulting to None refer to default values so dont worry.
+        Sends an email with the given parameters.
+
         Args:
-            receiver_email (str): The email address of the receiver.
+            receiver_email (str): The email address of the recipient.
             subject (str): The subject of the email.
-            body (str): The body of the email.
-            smtp_server (str, optional): The SMTP server to use for sending the email. Defaults to None.
-            smtps_port (int, optional): The SMTPS port to use for sending the email. Defaults to 465.
-            sender_name (str, optional): The name of the sender. Defaults to None.
-            attachments (list, optional): A list of file paths to attach to the email. Defaults to None.
-            sender_email (str, optional): The email address of the sender. Defaults to None.
+            body (str): The plain text body of the email.
+            html_body (str, optional): The HTML body of the email. Defaults to None.
+            smtp_server (str, optional): The SMTP server to use. If not provided, the default SMTP server will be used. Defaults to None.
+            smtps_port (int, optional): The port to use for SMTPS. Defaults to 465.
+            sender_name (str, optional): The name of the sender. If not provided, the username will be used. Defaults to None.
+            attachments (list, optional): A list of file paths of attachments to include in the email. Defaults to None.
+            sender_email (str, optional): The email address of the sender. If not provided, the username will be used with the iserv_url. Defaults to None.
 
         Raises:
+            TypeError: If attachments is provided but is not a list.
             smtplib.SMTPException: If there is an error sending the email.
 
         Returns:
             None
+
         """
+        
         # Create a message
+        if attachments != None:
+            if type(attachments) != list and attachments:
+                logging.error("Attachments must be list!")
+                raise TypeError("Attachments must be list!")
         
         if sender_name == None:
             sender_name = self.username
@@ -779,13 +788,17 @@ class IServAPI:
         if smtp_server == None:
             smtp_server = self.iserv_url
         
-        
-
         message = MIMEMultipart()
         message["From"] = sender_email
         message["To"] = receiver_email
         message["Subject"] = subject
+        
+        # Attach plain text body
         message.attach(MIMEText(body, "plain"))
+
+        if html_body:
+            # Attach HTML body
+            message.attach(MIMEText(html_body, "html"))
 
         if attachments:
             for attachment in attachments:
@@ -798,10 +811,11 @@ class IServAPI:
                 # Set the filename parameter
                 part.add_header(
                     "Content-Disposition",
-                    f"attachment; filename= {attachment}",
+                    f"attachment; filename= {os.path.basename(attachment)}",
                 )
                 # Add attachment to the message
                 message.attach(part)
+                logging.debug(attachment)
 
         try:
             # Connect to SMTP server using SMTPS port
