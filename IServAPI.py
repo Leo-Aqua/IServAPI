@@ -576,7 +576,9 @@ class IServAPI:
         Returns:
             dict: A JSON object containing the list of emails matching the specified criteria.
         """
-        return self.session.get(f"https://{self.iserv_url}/iserv/mail/api/message/list?path={path}&length={str(length)}&start={str(start)}&order%5Bcolumn%5D={order}&order%5Bdir%5D={dir}").json()
+        emails = self.session.get(f"https://{self.iserv_url}/iserv/mail/api/message/list?path={path}&length={str(length)}&start={str(start)}&order%5Bcolumn%5D={order}&order%5Bdir%5D={dir}").json()
+        logging.info("Got emails sccessfully!")
+        return emails
 
     def search_users(self, query):
         """
@@ -630,6 +632,7 @@ class IServAPI:
                 if a_tag:
                     content_href_dict = {'name': a_tag.get_text(), 'user_url': a_tag.get('href')}
                     content_href_list.append(content_href_dict)
+            logging.info("Searched users")
             return content_href_list
         
     def search_users_autocomplete(self, query, limit=50):
@@ -643,13 +646,17 @@ class IServAPI:
         Returns:
             dict: The JSON response containing the list of users matching the query.
         """
-        return self.session.get(f"https://{self.iserv_url}/iserv/core/autocomplete/api?type=user,list&query={query}&limit={str(limit)}").json()
+        users = self.session.get(f"https://{self.iserv_url}/iserv/core/autocomplete/api?type=user,list&query={query}&limit={str(limit)}").json()
+        logging.info("Searched users (autocomplete)")
+        return users
     
     def get_notifications(self):
         """
         Retrieves notifications from the specified URL and returns them as a JSON object.
         """
-        return self.session.get(f"https://{self.iserv_url}/iserv/user/api/notifications").json()
+        notifications = self.session.get(f"https://{self.iserv_url}/iserv/user/api/notifications").json()
+        logging.info("Got Notifications")
+        return notifications
     
     def get_email_info(self, path="INBOX", length=0, start=0, order="date", dir="desc"):
         """
@@ -666,7 +673,9 @@ class IServAPI:
             dict: A JSON object containing the email information.
 
         """
-        return self.session.get(f"https://{self.iserv_url}/iserv/mail/api/message/list?path={path}&length={str(length)}&start={str(start)}&order%5Bcolumn%5D={order}&order%5Bdir%5D={dir}").json()
+        email_info = self.session.get(f"https://{self.iserv_url}/iserv/mail/api/message/list?path={path}&length={str(length)}&start={str(start)}&order%5Bcolumn%5D={order}&order%5Bdir%5D={dir}").json()
+        logging.info("Got Email info!")
+        return email_info
 
     def get_email_source(self, uid, path="INBOX"):
         """
@@ -679,7 +688,9 @@ class IServAPI:
         Returns:
             str: The source code of the email message.
         """
-        return self.session.get(f"https://{self.iserv_url}/iserv/mail/show/source?path={path}&msg={str(uid)}").text
+        email_source = self.session.get(f"https://{self.iserv_url}/iserv/mail/show/source?path={path}&msg={str(uid)}").text
+        logging.info("Got Email source")
+        return email_source
 
     def get_mail_folders(self):
         """
@@ -687,7 +698,9 @@ class IServAPI:
 
         :return: A JSON object containing the list of mail folders.
         """
-        return self.session.get(f"https://{self.iserv_url}/iserv/mail/api/folder/list").json()
+        mail_folders = self.session.get(f"https://{self.iserv_url}/iserv/mail/api/folder/list").json()
+        logging.info("Got Email Folders")
+        return mail_folders
     
     def get_upcoming_events(self):
         """
@@ -695,15 +708,18 @@ class IServAPI:
 
         :return: A JSON object containing the upcoming events.
         """
-        return self.session.get(f"https://{self.iserv_url}/iserv/calendar/api/upcoming").json()
-
+        events = self.session.get(f"https://{self.iserv_url}/iserv/calendar/api/upcoming").json()
+        logging.info("Got upcomming events")
+        return events
     def get_eventsources(self):
         """
         Retrieves the event sources from the calendar API.
 
         :return: A JSON object containing the event sources.
         """
-        return self.session.get(f"https://{self.iserv_url}/iserv/calendar/api/eventsources").json()
+        eventsources = self.session.get(f"https://{self.iserv_url}/iserv/calendar/api/eventsources").json()
+        logging.info("Got eventsources")
+        return eventsources
 
     def get_conference_health(self):
         """
@@ -711,7 +727,9 @@ class IServAPI:
 
         :return: JSON response containing the health status of the API
         """
-        return self.session.get(f"https://{self.iserv_url}/iserv/videoconference/api/health").json()
+        health = self.session.get(f"https://{self.iserv_url}/iserv/videoconference/api/health").json()
+        logging.info("Got Conference Health")
+        return health 
     
     def get_badges(self):
         """
@@ -719,7 +737,9 @@ class IServAPI:
 
         :return: A JSON object containing the badges.
         """
-        return self.session.get(f"https://{self.iserv_url}/iserv/app/navigation/badges").json()
+        badges = self.session.get(f"https://{self.iserv_url}/iserv/app/navigation/badges").json()
+        logging.info("Got Badges")
+        return badges
     
     def file(self, davurl = "default", username="default", password="default", path="/"):
         """
@@ -744,6 +764,7 @@ class IServAPI:
                 'webdav_password': password
                 }
             self.__DAVclient = wc.Client(options)
+            logging.info("Files initiated")
             return self.__DAVclient
         except WebDavException as e:
             logging.error("Exception at file (webdav): " + str(e))
@@ -827,7 +848,7 @@ class IServAPI:
         except smtplib.SMTPException as e:
             logging.error("Failed to send email:", e)
             raise smtplib.SMTPException(e)
-    
+        
     def read_all_notifications(self):
 
     
@@ -840,7 +861,9 @@ class IServAPI:
         Raises:
             requests.exceptions.RequestException: If there is an error while making the request.
         """
-        return self.session.post(f"https://{self.iserv_url}/iserv/notification/api/v1/notifications/readall", cookies={"IServSAT":self.IServSAT, "IServSATId":self.IServSATId, "IServSession":self.IServSession})
+        notifiactions = self.session.post(f"https://{self.iserv_url}/iserv/notification/api/v1/notifications/readall", cookies={"IServSAT":self.IServSAT, "IServSATId":self.IServSATId, "IServSession":self.IServSession})
+        logging.info("Read all notifications")
+        return notifiactions
     
     def read_notifiaction(self, notification_id:int):
         """
@@ -855,7 +878,9 @@ class IServAPI:
          Raises:
              requests.exceptions.RequestException: If there was an error making the API request.
          """
-        return self.session.post(f"https://{self.iserv_url}/iserv/notification/api/v1/notifications/{notification_id}/read", cookies={"IServSAT":self.IServSAT, "IServSATId":self.IServSATId, "IServSession":self.IServSession})
+        notification = self.session.post(f"https://{self.iserv_url}/iserv/notification/api/v1/notifications/{notification_id}/read", cookies={"IServSAT":self.IServSAT, "IServSATId":self.IServSATId, "IServSession":self.IServSession})
+        logging.info("read nofification " + notification_id)
+        return notification
 
     def get_user_info(self, user):
         """
@@ -874,6 +899,7 @@ class IServAPI:
             for df in dfs:
                 data_dict = dict(zip(df[0], df[1]))
                 data.append(data_dict)
+            logging.info("Got info of user " + user)
         except ValueError:
             logging.error("No such user found!")
             raise ValueError("No such user found!")
@@ -884,9 +910,8 @@ class IServAPI:
         return data[0]
 
 
-if __name__ == "__main__":
-    # Set up logging
-    log_file = 'app.log'
-    IServAPI.setup_logging(log_file)
+
+
+
 
     
