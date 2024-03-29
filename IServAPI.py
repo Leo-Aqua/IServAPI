@@ -206,7 +206,7 @@ class IServAPI:
             personal_information_data_response = self.session.get(
                 f"https://{self.iserv_url}/iserv/profile/public/edit#data"
             )
-            personal_information_adress_response = self.session.get(
+            personal_information_address_response = self.session.get(
                 f"https://{self.iserv_url}/iserv/profile/public/edit#address"
             )
             personal_information_contact_response = self.session.get(
@@ -303,7 +303,7 @@ class IServAPI:
                 logging.warning(f"No data in {id}")
                 public_info_json[key] = ""
 
-        soup = BeautifulSoup(personal_information_adress_response.text, "html.parser")
+        soup = BeautifulSoup(personal_information_address_response.text, "html.parser")
 
         ids_and_keys = [
             ("publiccontact_street", "street"),
@@ -914,7 +914,7 @@ class IServAPI:
         Raises:
             requests.exceptions.RequestException: If there is an error while making the request.
         """
-        notifiactions = self.session.post(
+        notifications = self.session.post(
             f"https://{self.iserv_url}/iserv/notification/api/v1/notifications/readall",
             cookies={
                 "IServSAT": self.IServSAT,
@@ -923,9 +923,9 @@ class IServAPI:
             },
         )
         logging.info("Read all notifications")
-        return notifiactions
+        return notifications
 
-    def read_notifiaction(self, notification_id: int):
+    def read_notification(self, notification_id: int):
         """
         Sends a POST request to the IServ notification API to mark a specific notification as read.
 
@@ -946,7 +946,7 @@ class IServAPI:
                 "IServSession": self.IServSession,
             },
         )
-        logging.info("read nofification " + notification_id)
+        logging.info("read notification " + notification_id)
         return notification
 
     def get_user_info(self, user):
