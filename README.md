@@ -314,16 +314,6 @@ client.unpublish("dir2")
 ```
 
 ```python
-# Exception handling
-
-from webdav.client import WebDavException
-try:
-...
-except WebDavException as exception:
-...
-```
-
-```python
 # Get the missing files
 
 client.pull(remote_directory='dir1', local_directory='~/Documents/dir1')
