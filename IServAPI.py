@@ -885,7 +885,7 @@ class IServAPI:
                 # Set the filename parameter
                 part.add_header(
                     "Content-Disposition",
-                    f"attachment; filename= {os.path.basename(attachment)}",
+                    f"attachment; filename=\"{os.path.basename(attachment)}\"",
                 )
                 # Add attachment to the message
                 message.attach(part)
