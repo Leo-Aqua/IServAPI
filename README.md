@@ -412,7 +412,7 @@ Add this
 ```python
 IServAPI.setup_logging("app.log")
 ```
-after your `from IServAPI.IServAPI import IServAPI`
+after your `from IServAPI import IServAPI`
 
 
 ### To-Do List
@@ -435,4 +435,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 > [!IMPORTANT]
 > ## DISCLAIMER
-> I HOLD NO RESPONSIBILITY FOR ANY DAMAGES OR DATALOSS DONE BY THIS > PACKAGE. >YOU ARE RESPONSIBLE FOR YOUR DATA!
+> 
+> I HOLD NO RESPONSIBILITY FOR ANY DAMAGES OR DATALOSS DONE BY THIS PACKAGE.
+> 
+> YOU ARE RESPONSIBLE FOR YOUR DATA!
