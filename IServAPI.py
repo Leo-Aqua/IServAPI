@@ -820,9 +820,7 @@ class IServAPI:
         html_body: str = None,
         smtp_server: str = None,
         smtps_port: int = 465,
-        sender_name: str = None,
         attachments: list = None,
-        sender_email: str = None,
     ):
         """
         Sends an email with the given parameters.
@@ -834,9 +832,7 @@ class IServAPI:
             html_body (str, optional): The HTML body of the email. Defaults to None.
             smtp_server (str, optional): The SMTP server to use. If not provided, the default SMTP server will be used. Defaults to None.
             smtps_port (int, optional): The port to use for SMTPS. Defaults to 465.
-            sender_name (str, optional): The name of the sender. If not provided, the username will be used. Defaults to None.
             attachments (list, optional): A list of file paths of attachments to include in the email. Defaults to None.
-            sender_email (str, optional): The email address of the sender. If not provided, the username will be used with the iserv_url. Defaults to None.
 
         Raises:
             TypeError: If attachments is provided but is not a list.
@@ -853,17 +849,11 @@ class IServAPI:
                 logging.error("Attachments must be list!")
                 raise TypeError("Attachments must be list!")
 
-        if sender_name == None:
-            sender_name = self.username
-        if sender_email == None:
-            sender_email = self.username + "@" + self.iserv_url
-        if sender_name != None:
-            sender_email = sender_email + f" ({sender_name})"
+
         if smtp_server == None:
             smtp_server = self.iserv_url
 
         message = MIMEMultipart()
-        message["From"] = sender_email
         message["To"] = receiver_email
         message["Subject"] = subject
 
@@ -885,7 +875,7 @@ class IServAPI:
                 # Set the filename parameter
                 part.add_header(
                     "Content-Disposition",
-                    f"attachment; filename=\"{os.path.basename(attachment)}\"",
+                    f'attachment; filename="{os.path.basename(attachment)}"',
                 )
                 # Add attachment to the message
                 message.attach(part)
@@ -895,7 +885,11 @@ class IServAPI:
             # Connect to SMTP server using SMTPS port
             with smtplib.SMTP_SSL(smtp_server, smtps_port) as server_ssl:
                 server_ssl.login(self.username, self.password)
-                server_ssl.sendmail(sender_email, receiver_email, message.as_string())
+                server_ssl.sendmail(
+                    self.username + "@" + self.iserv_url,
+                    receiver_email,
+                    message.as_string(),
+                )
                 logging.info(
                     "Email sent successfully via SMTPS (port {}).".format(smtps_port)
                 )
