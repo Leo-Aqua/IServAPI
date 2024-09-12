@@ -33,25 +33,34 @@ print(user_info)
 
 ## List of functions
 
-1. [Get own User Information](#1-get-own-user-information)
-2. [Set own User Information](#2-set-own-user-information)
-3. [Get user avatar](#3-get-user-avatar)
-4. [Get emails](#4-get-emails)
-5. [Search users](#5-search-users)
-6. [Search users autocomplete](#6-search-users-autocomplete)
-7. [Fetch notifications](#7-fetch-notifications)
-8. [Get general Information about emails](#8-get-general-information-about-emails)
-9. [Get email source](#9-get-email-source)
-10. [Get all mail folders](#10-get-all-mail-folders)
-11. [Get upcoming events](#11-get-upcoming-events)
-12. [Get all eventsources](#12-get-all-eventsources)
-13. [Get conference health](#13-get-conference-health)
-14. [Get badges](#14-get-badges)
-15. [Files](#15-files)
-16. [Read all notifications](#16-read-all-notifications)
-17. [Read a specific Notification](#17-read-a-specific-notification)
-18. [Send Email](#18-send-email)
-19. [Get other users information](#19-get-other-users-information)
+- [Unofficial IServ API](#unofficial-iserv-api)
+  - [Installation](#installation)
+  - [Basic usage](#basic-usage)
+  - [List of functions](#list-of-functions)
+  - [Supported Functionality](#supported-functionality)
+    - [Get own User Information](#get-own-user-information)
+    - [2. Set own User Information](#2-set-own-user-information)
+    - [3. Get user avatar](#3-get-user-avatar)
+    - [4. Get emails](#4-get-emails)
+    - [5. Search users](#5-search-users)
+    - [6. Search users autocomplete](#6-search-users-autocomplete)
+    - [7. Fetch notifications](#7-fetch-notifications)
+    - [8. Get general Information about emails](#8-get-general-information-about-emails)
+    - [9. Get email source](#9-get-email-source)
+    - [10. Get all mail folders](#10-get-all-mail-folders)
+    - [11. Get upcoming events](#11-get-upcoming-events)
+    - [12. Get all eventsources](#12-get-all-eventsources)
+    - [13. Get conference health](#13-get-conference-health)
+    - [14. Get badges](#14-get-badges)
+    - [15. Files](#15-files)
+    - [16. Read all notifications](#16-read-all-notifications)
+    - [17. Read a specific Notification](#17-read-a-specific-notification)
+    - [18. Send Email](#18-send-email)
+    - [19. Get other users information](#19-get-other-users-information)
+    - [Logging](#logging)
+    - [To-Do List](#to-do-list)
+  - [Contribution](#contribution)
+  - [License](#license)
 
 
 
@@ -438,4 +447,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 > 
 > I HOLD NO RESPONSIBILITY FOR ANY DAMAGES OR DATALOSS DONE BY THIS PACKAGE.
 > 
-> YOU ARE RESPONSIBLE FOR YOUR DATA!
+> YOU ARE RESPONSIBLE FOR WHAT YOU DO!
