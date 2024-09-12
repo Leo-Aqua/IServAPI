@@ -27,12 +27,12 @@ class IServAPI:
         :return: None
         """
         self.username = username
-        self.password = password
+        self._password = password
         self.iserv_url = iserv_url
-        self.session = None
-        self.IServSAT = None
-        self.IServSATId = None
-        self.IServSession = None
+        self._session = None
+        self._IServSAT = None
+        self._IServSATId = None
+        self._IServSession = None
         self.__DAVclient = None
         self.__login()
 
@@ -94,7 +94,7 @@ class IServAPI:
         response = session.get(login_url, headers=headers)
 
         # Second request to submit login credentials
-        login_data = {"_username": self.username, "_password": self.password}
+        login_data = {"_username": self.username, "_password": self._password}
 
         response = session.post(login_url, headers=headers, data=login_data)
 
@@ -111,9 +111,9 @@ class IServAPI:
 
         # Print out the cookies
         cookies = session.cookies.get_dict()
-        self.IServSAT = cookies.get("IServSAT")
-        self.IServSATId = cookies.get("IServSATId")
-        self.IServSession = cookies.get("IServSession")
+        self._IServSAT = cookies.get("IServSAT")
+        self._IServSATId = cookies.get("IServSATId")
+        self._IServSession = cookies.get("IServSession")
         logging.info("Cookies extracted successfully!")
         return
 
@@ -130,19 +130,19 @@ class IServAPI:
             ValueError: If the account does not exist or the login fails.
             ConnectionError: If there is a problem establishing a connection.
         """
-        self.session = requests.Session()
+        self._session = requests.Session()
 
         try:
             # Perform initial GET request to obtain login page and CSRF tokens if present
-            base_response = self.session.get(
+            base_response = self._session.get(
                 f"https://{self.iserv_url}/iserv/auth/login"
             )
 
             # Prepare login credentials to send with POST request
-            login_data = {"_username": self.username, "_password": self.password}
+            login_data = {"_username": self.username, "_password": self._password}
 
             # Submit login credentials and check response
-            login_response = self.session.post(base_response.url, data=login_data)
+            login_response = self._session.post(base_response.url, data=login_data)
 
             # Check if the account does not exist
             if "Account existiert nicht!" in login_response.text:
@@ -191,10 +191,10 @@ class IServAPI:
                     - _token (str): The user's token.
         """
 
-        if not self.session:
+        if not self._session:
             raise ValueError("Session is not initialized. Please log in first.")
         try:
-            user_info_response = self.session.get(
+            user_info_response = self._session.get(
                 f"https://{self.iserv_url}/iserv/profile"
             )
 
@@ -203,19 +203,19 @@ class IServAPI:
             raise ValueError("Error retrieving user information")
         user_info = {}
         try:
-            personal_information_data_response = self.session.get(
+            personal_information_data_response = self._session.get(
                 f"https://{self.iserv_url}/iserv/profile/public/edit#data"
             )
-            personal_information_address_response = self.session.get(
+            personal_information_address_response = self._session.get(
                 f"https://{self.iserv_url}/iserv/profile/public/edit#address"
             )
-            personal_information_contact_response = self.session.get(
+            personal_information_contact_response = self._session.get(
                 f"https://{self.iserv_url}/iserv/profile/public/edit#contact"
             )
-            personal_information_instant_response = self.session.get(
+            personal_information_instant_response = self._session.get(
                 f"https://{self.iserv_url}/iserv/profile/public/edit#instant"
             )
-            personal_information_note_response = self.session.get(
+            personal_information_note_response = self._session.get(
                 f"https://{self.iserv_url}/iserv/profile/public/edit#note"
             )
         except Exception as e:
@@ -416,7 +416,7 @@ class IServAPI:
         :rtype: int
         """
 
-        if not self.session:
+        if not self._session:
             raise ValueError("Session is not initialized. Please log in first.")
         try:
 
@@ -534,9 +534,9 @@ class IServAPI:
             }
 
             cookies = {
-                "IServSAT": self.IServSAT,
-                "IServSATId": self.IServSATId,
-                "IServSession": self.IServSession,
+                "IServSAT": self._IServSAT,
+                "IServSATId": self._IServSATId,
+                "IServSession": self._IServSession,
             }
             response = requests.post(
                 f"https://{self.iserv_url}/iserv/profile/public/edit",
@@ -564,7 +564,7 @@ class IServAPI:
 
         """
         # Send a GET request to the URL that hosts the user's avatar
-        avatar = self.session.get(
+        avatar = self._session.get(
             f"https://{self.iserv_url}/iserv/core/avatar/user/{user}"
         )
 
@@ -595,7 +595,7 @@ class IServAPI:
         Returns:
             dict: A JSON object containing the list of emails matching the specified criteria.
         """
-        emails = self.session.get(
+        emails = self._session.get(
             f"https://{self.iserv_url}/iserv/mail/api/message/list?path={path}&length={str(length)}&start={str(start)}&order%5Bcolumn%5D={order}&order%5Bdir%5D={dir}"
         ).json()
         logging.info("Got emails sccessfully!")
@@ -620,7 +620,7 @@ class IServAPI:
         """
 
         query = urllib.parse.quote(query)
-        resonse = self.session.get(
+        resonse = self._session.get(
             f"https://{self.iserv_url}/iserv/addressbook/public?filter%5Bsearch%5D={query}",
             allow_redirects=True,
         )
@@ -669,7 +669,7 @@ class IServAPI:
         Returns:
             dict: The JSON response containing the list of users matching the query.
         """
-        users = self.session.get(
+        users = self._session.get(
             f"https://{self.iserv_url}/iserv/core/autocomplete/api?type=user,list&query={query}&limit={str(limit)}"
         ).json()
         logging.info("Searched users (autocomplete)")
@@ -679,7 +679,7 @@ class IServAPI:
         """
         Retrieves notifications from the specified URL and returns them as a JSON object.
         """
-        notifications = self.session.get(
+        notifications = self._session.get(
             f"https://{self.iserv_url}/iserv/user/api/notifications"
         ).json()
         logging.info("Got Notifications")
@@ -700,7 +700,7 @@ class IServAPI:
             dict: A JSON object containing the email information.
 
         """
-        email_info = self.session.get(
+        email_info = self._session.get(
             f"https://{self.iserv_url}/iserv/mail/api/message/list?path={path}&length={str(length)}&start={str(start)}&order%5Bcolumn%5D={order}&order%5Bdir%5D={dir}"
         ).json()
         logging.info("Got Email info!")
@@ -717,7 +717,7 @@ class IServAPI:
         Returns:
             str: The source code of the email message.
         """
-        email_source = self.session.get(
+        email_source = self._session.get(
             f"https://{self.iserv_url}/iserv/mail/show/source?path={path}&msg={str(uid)}"
         ).text
         logging.info("Got Email source")
@@ -729,7 +729,7 @@ class IServAPI:
 
         :return: A JSON object containing the list of mail folders.
         """
-        mail_folders = self.session.get(
+        mail_folders = self._session.get(
             f"https://{self.iserv_url}/iserv/mail/api/folder/list"
         ).json()
         logging.info("Got Email Folders")
@@ -741,7 +741,7 @@ class IServAPI:
 
         :return: A JSON object containing the upcoming events.
         """
-        events = self.session.get(
+        events = self._session.get(
             f"https://{self.iserv_url}/iserv/calendar/api/upcoming"
         ).json()
         logging.info("Got upcomming events")
@@ -753,7 +753,7 @@ class IServAPI:
 
         :return: A JSON object containing the event sources.
         """
-        eventsources = self.session.get(
+        eventsources = self._session.get(
             f"https://{self.iserv_url}/iserv/calendar/api/eventsources"
         ).json()
         logging.info("Got eventsources")
@@ -765,7 +765,7 @@ class IServAPI:
 
         :return: JSON response containing the health status of the API
         """
-        health = self.session.get(
+        health = self._session.get(
             f"https://{self.iserv_url}/iserv/videoconference/api/health"
         ).json()
         logging.info("Got Conference Health")
@@ -777,7 +777,7 @@ class IServAPI:
 
         :return: A JSON object containing the badges.
         """
-        badges = self.session.get(
+        badges = self._session.get(
             f"https://{self.iserv_url}/iserv/app/navigation/badges"
         ).json()
         logging.info("Got Badges")
@@ -799,7 +799,7 @@ class IServAPI:
         try:
             davurl = "webdav." + self.iserv_url if davurl == "default" else davurl
             username = self.username if username == "default" else username
-            password = self.password if password == "default" else password
+            password = self._password if password == "default" else password
             options = {
                 "webdav_hostname": "https://" + davurl,
                 "webdav_login": username,
@@ -849,11 +849,14 @@ class IServAPI:
                 logging.error("Attachments must be list!")
                 raise TypeError("Attachments must be list!")
 
-
         if smtp_server == None:
             smtp_server = self.iserv_url
 
+        sender_name = self.search_users_autocomplete(self.username)[0][
+            "label"
+        ]  # Search for own username to obtain correct Sender name
         message = MIMEMultipart()
+        message["From"] = self.username + "@" + self.iserv_url + f" ({sender_name})"
         message["To"] = receiver_email
         message["Subject"] = subject
 
@@ -884,7 +887,7 @@ class IServAPI:
         try:
             # Connect to SMTP server using SMTPS port
             with smtplib.SMTP_SSL(smtp_server, smtps_port) as server_ssl:
-                server_ssl.login(self.username, self.password)
+                server_ssl.login(self.username, self._password)
                 server_ssl.sendmail(
                     self.username + "@" + self.iserv_url,
                     receiver_email,
@@ -908,12 +911,12 @@ class IServAPI:
         Raises:
             requests.exceptions.RequestException: If there is an error while making the request.
         """
-        notifications = self.session.post(
+        notifications = self._session.post(
             f"https://{self.iserv_url}/iserv/notification/api/v1/notifications/readall",
             cookies={
-                "IServSAT": self.IServSAT,
-                "IServSATId": self.IServSATId,
-                "IServSession": self.IServSession,
+                "IServSAT": self._IServSAT,
+                "IServSATId": self._IServSATId,
+                "IServSession": self._IServSession,
             },
         )
         logging.info("Read all notifications")
@@ -932,12 +935,12 @@ class IServAPI:
         Raises:
             requests.exceptions.RequestException: If there was an error making the API request.
         """
-        notification = self.session.post(
+        notification = self._session.post(
             f"https://{self.iserv_url}/iserv/notification/api/v1/notifications/{notification_id}/read",
             cookies={
-                "IServSAT": self.IServSAT,
-                "IServSATId": self.IServSATId,
-                "IServSession": self.IServSession,
+                "IServSAT": self._IServSAT,
+                "IServSATId": self._IServSATId,
+                "IServSession": self._IServSession,
             },
         )
         logging.info("read notification " + notification_id)
@@ -949,7 +952,7 @@ class IServAPI:
         :param user: str - The user for who the information is being retrieved.
         :return: dict - A dictionary containing the user information.
         """
-        response = self.session.get(
+        response = self._session.get(
             f"https://{self.iserv_url}/iserv/addressbook/public/show/{user}"
         )
         soup = BeautifulSoup(response.text, "html.parser")
