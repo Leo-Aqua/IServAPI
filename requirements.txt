@@ -4,5 +4,5 @@ bs4
 lxml
 webdavclient
 pandas
-dateutil
+python-dateutil
 typing
