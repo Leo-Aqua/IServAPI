@@ -14,6 +14,7 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Leo-Aqua/IServAPI",
     keywords=["IServ", "IServAPI", "iserv api", "iserv-api", "API", "Leo-Aqua"],
+    packages=find_packages(),
     install_requires=[
         "requests",
         "beautifulsoup4",
