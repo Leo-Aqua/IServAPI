@@ -4,8 +4,10 @@ import subprocess
 def get_version():
     try:
         version = subprocess.check_output(["git", "describe", "--tags", "--abbrev=0"], stderr=subprocess.DEVNULL).decode().strip().lstrip("v")
+        print("Detected version from git tags:", version)
         return version
-    except Exception:
+    except Exception as e:
+        print("Could not get version from git tags, using fallback. Error:", e)
         return "0.1.1"  # fallback to existing version to prevent uploading it to pypi
 
 with open("README.md", "r") as fh:
