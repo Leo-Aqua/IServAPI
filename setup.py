@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 
 with open("README.md", "r") as fh:
@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="IServAPI",
-    version="1.3.1",
+    version="1.3.2",
     author="Leo Aqua",
     author_email="contact@leoaqua.de",
     description="Unofficial API for IServ",
@@ -14,7 +14,7 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Leo-Aqua/IServAPI",
     keywords=["IServ", "IServAPI", "iserv api", "iserv-api", "API", "Leo-Aqua"],
-    packages=find_packages(),
+    py_modules=["IServAPI"],
     install_requires=[
         "requests",
         "beautifulsoup4",
