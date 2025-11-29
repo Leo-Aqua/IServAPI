@@ -1,21 +1,10 @@
 from setuptools import setup
-import subprocess
-
-def get_version():
-    try:
-        version = subprocess.check_output(["git", "describe", "--tags", "--abbrev=0"], stderr=subprocess.DEVNULL).decode().strip().lstrip("v")
-        print("Detected version from git tags:", version)
-        return version
-    except Exception as e:
-        print("Could not get version from git tags, using fallback. Error:", e)
-        return "0.1.1"  # fallback to existing version to prevent uploading it to pypi
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
     name="IServAPI",
-    version=get_version(),
     author="Leo Aqua",
     author_email="contact@leoaqua.de",
     description="Unofficial API for IServ",
@@ -24,6 +13,12 @@ setup(
     url="https://github.com/Leo-Aqua/IServAPI",
     keywords=["IServ", "IServAPI", "iserv api", "iserv-api", "API", "Leo-Aqua"],
     py_modules=["IServAPI"],
+    use_scm_version={
+        "version_scheme": "post-release",
+        "local_scheme": "no-local-version",
+        "tag_regex": r"v?(?P<version>\d+\.\d+\.\d+)",  # strips the 'v' prefix
+    },
+    setup_requires=["setuptools_scm"],  # ensures setuptools_scm is available during setup
     install_requires=[
         "requests",
         "beautifulsoup4",
