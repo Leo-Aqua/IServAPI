@@ -1,12 +1,19 @@
 from setuptools import setup
+import subprocess
 
+def get_version():
+    try:
+        version = subprocess.check_output(["git", "describe", "--tags", "--abbrev=0"], stderr=subprocess.DEVNULL).decode().strip().lstrip("v")
+        return version
+    except Exception:
+        return "0.1.1"  # fallback to existing version to prevent uploading it to pypi
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
     name="IServAPI",
-    version="1.3.2",
+    version=get_version(),
     author="Leo Aqua",
     author_email="contact@leoaqua.de",
     description="Unofficial API for IServ",
