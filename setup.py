@@ -31,6 +31,7 @@ setup(
         "pandas",
         "html5lib",
         "python-dateutil",
+        "python-dotenv"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
