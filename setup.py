@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import find_packages, setup
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -12,18 +12,22 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Leo-Aqua/IServAPI",
     keywords=["IServ", "IServAPI", "iserv api", "iserv-api", "API", "Leo-Aqua"],
-    py_modules=["IServAPI"],
+    packages=find_packages("src"),
+    package_dir={"": "src"},
+    include_package_data=True,
     use_scm_version={
         "version_scheme": "post-release",
         "local_scheme": "no-local-version",
         "tag_regex": r"v?(?P<version>\d+\.\d+\.\d+)",  # strips the 'v' prefix
     },
-    setup_requires=["setuptools_scm"],  # ensures setuptools_scm is available during setup
+    setup_requires=[
+        "setuptools_scm"
+    ],  # ensures setuptools_scm is available during setup
     install_requires=[
         "requests",
         "beautifulsoup4",
         "lxml",
-        "webdavclient",
+        "webdavclient3",
         "pandas",
         "html5lib",
         "python-dateutil",

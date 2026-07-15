@@ -1,0 +1,1648 @@
+import requests
+import logging
+from logging.handlers import RotatingFileHandler
+from bs4 import BeautifulSoup
+from lxml import etree
+import urllib.parse
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+from io import StringIO
+import os
+import json
+from typing import TypedDict, Literal, Union, Optional, Dict
+
+try:
+    import dateutil
+except ImportError:  # pragma: no cover - optional dependency
+    dateutil = None
+
+try:
+    import pandas as pd
+except ImportError:  # pragma: no cover - optional dependency
+    pd = None
+
+try:
+    import webdav3.client as wc
+    from webdav3.exceptions import WebDavException
+except ImportError:  # pragma: no cover - optional dependency
+    wc = None
+    WebDavException = Exception
+
+
+# Classes for typing
+class Recurring(TypedDict, total=False):
+    intervalType: Literal["NO", "DAILY", "WEEKDAYS", "WEEKLY", "MONTHLY", "YEARLY"]
+    interval: Literal[
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+    ]
+    monthDayInMonth: Literal[
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+    ]
+    monthlyIntervalType: Literal["BYMONTHDAY", "BYDAY"]
+    monthInterval: Literal[1, 2, 3, 4, -1]
+    monthDay: Literal["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
+    recurrenceDays: list[Literal["MO", "TU", "WE", "TH", "FR", "SA", "SU"]]
+    endType: Literal["NEVER", "COUNT", "UNTIL"]
+    endInterval: Optional[int]
+    untilDate: Optional[str]
+
+
+class CustomDateTime(TypedDict):
+    dateTime: str
+
+
+# Interval structure
+class Interval(TypedDict):
+    days: int
+    hours: int
+    minutes: int
+
+
+class CustomInterval(TypedDict):
+    interval: Interval
+    before: bool
+
+
+# Main type
+AlarmType = Union[
+    Literal["0M", "5M", "15M", "30M", "1H", "2H", "12H", "1D", "2D", "7D"],
+    Dict[str, CustomDateTime],  # {"custom_date_time": {...}}
+    Dict[str, CustomInterval],  # {"custom_interval": {...}}
+]
+
+
+class IServAPI:
+
+    # Technical
+
+    def __init__(self, username, password, iserv_url):
+        """
+        Initializes the credentials and URLs needed for accessing the IServ system.
+
+        :param username: str - The username for the IServ system.
+        :param password: str - The password for the IServ system.
+        :param iserv_url: str - The URL of the IServ system.
+        :return: None
+        """
+        self.username = username
+        self._password = password
+        self.iserv_url = iserv_url
+        self._session = None
+        self._IServSAT = None
+        self._IServSATId = None
+        self._IServSession = None
+        self.__DAVclient = None
+        self.__login()
+
+    def setup_logging(log_file="app.log"):
+        """
+        Set up a logger with a rotating file handler.
+
+        This function initializes a logger that writes logs to a specified file. It uses
+        a rotating file handler to limit the size of each log file to 1 MB and retains
+        up to 5 backup copies of the log files.
+
+        Args:
+            log_file (str): The path to the log file.
+        """
+
+        # Initialize the root logger
+        logger = logging.getLogger()
+        logger.setLevel(logging.DEBUG)
+
+        # Define the format for log messages
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
+        # Set up rotating file handler
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=1024 * 1024,
+            backupCount=5,  # Set file size to 1MB and keep 5 backups
+        )
+        file_handler.setLevel(logging.DEBUG)  # Log all DEBUG and higher level messages
+        file_handler.setFormatter(formatter)  # Apply the formatter to the file handler
+
+        # Attach the file handler to the logger
+        logger.addHandler(file_handler)
+
+        # Log a message indicating that logging was set up successfully
+        logging.info("Logging setup successful!")
+
+    def __get_cookies(self):
+        # Create a session object to persist cookies across requests
+        session = requests.Session()
+
+        # First request to login page
+        login_url = f"https://{self.iserv_url}/iserv/auth/login"
+        headers = {
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "accept-language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
+            "cache-control": "max-age=0",
+            "sec-ch-ua": '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "document",
+            "sec-fetch-mode": "navigate",
+            "sec-fetch-site": "none",
+            "sec-fetch-user": "?1",
+            "upgrade-insecure-requests": "1",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+        }
+
+        response = session.get(login_url, headers=headers)
+
+        # Second request to submit login credentials
+        login_data = {"_username": self.username, "_password": self._password}
+
+        response = session.post(login_url, headers=headers, data=login_data)
+
+        # Third request to home page
+        home_url = f"https://{self.iserv_url}/iserv/auth/home"
+        response = session.get(home_url, headers=headers)
+
+        # Fourth request to main page
+        main_page_url = f"https://{self.iserv_url}/iserv/"
+        response = session.get(main_page_url, headers=headers)
+
+        # Fifth request to main page again to get dynamic cookies
+        response = session.get(main_page_url, headers=headers)
+
+        # Print out the cookies
+        cookies = session.cookies.get_dict()
+        self._IServSAT = cookies.get("IServSAT")
+        self._IServSATId = cookies.get("IServSATId")
+        self._IServSession = cookies.get("IServSession")
+        logging.info("Cookies extracted successfully!")
+        return
+
+    def __login(self):
+        """
+        Authenticates the user against the IServ server and initiates a session.
+
+        This method performs a POST request with the user's credentials to the
+        IServ authentication URL and checks for common failure scenarios such as
+        non-existent accounts or failed login attempts due to wrong credentials.
+        Upon successful login, it retrieves session cookies.
+
+        Raises:
+            ValueError: If the account does not exist or the login fails.
+            ConnectionError: If there is a problem establishing a connection.
+        """
+        self._session = requests.Session()
+
+        try:
+            # Perform initial GET request to obtain login page and CSRF tokens if present
+            base_response = self._session.get(
+                f"https://{self.iserv_url}/iserv/auth/login"
+            )
+
+            # Prepare login credentials to send with POST request
+            login_data = {"_username": self.username, "_password": self._password}
+
+            # Submit login credentials and check response
+            login_response = self._session.post(base_response.url, data=login_data)
+
+            # Check if the account does not exist
+            if "Account existiert nicht!" in login_response.text:
+                raise ValueError("Account does not exist!")
+
+            # Check if the login has failed, usually due to incorrect credentials
+            if "Anmeldung fehlgeschlagen!" in login_response.text:
+                raise ValueError("Login failed! Probably wrong password.")
+
+        except requests.exceptions.ConnectionError as e:
+            # Handle connection errors during the login process
+            raise ConnectionError(f"Error establishing connection: {e}")
+
+        # Retrieve and store session cookies after successful login
+        self.__get_cookies()
+
+    # Own account
+
+    def get_own_user_info(self):
+        """
+        Retrieves the user information from the server.
+
+        Returns:
+            dict: A dictionary containing the user information, including the following keys:
+                - Groups (dict): A dictionary mapping group names to group URLs.
+                - Roles (list): A list of role names.
+                - Rights (list): A list of right names.
+                - Public_info (dict): A dictionary containing the public information, including the following keys:
+                    - title (str): The user's title.
+                    - company (str): The user's company.
+                    - birthday (str): The user's birthday.
+                    - nickname (str): The user's nickname.
+                    - class (str): The user's class.
+                    - street (str): The user's street address.
+                    - zipcode (str): The user's zip code.
+                    - city (str): The user's city.
+                    - country (str): The user's country.
+                    - icq (str): The user's ICQ number.
+                    - jabber (str): The user's Jabber address.
+                    - msn (str): The user's MSN address.
+                    - skype (str): The user's Skype address.
+                    - note (str): The user's note.
+                    - phone (str): The user's phone number.
+                    - mobilePhone (str): The user's mobile phone number.
+                    - fax (str): The user's fax number.
+                    - mail (str): The user's email address.
+                    - homepage (str): The user's homepage URL.
+                    - _token (str): The user's token.
+        """
+
+        if not self._session:
+            raise ValueError("Session is not initialized. Please log in first.")
+        try:
+            user_info_response = self._session.get(
+                f"https://{self.iserv_url}/iserv/profile"
+            )
+
+        except Exception as e:
+            logging.error(f"Error retrieving user information: {e}")
+            raise ValueError("Error retrieving user information")
+        user_info = {}
+        try:
+            personal_information_data_response = self._session.get(
+                f"https://{self.iserv_url}/iserv/profile/public/edit#data"
+            )
+            personal_information_address_response = self._session.get(
+                f"https://{self.iserv_url}/iserv/profile/public/edit#address"
+            )
+            personal_information_contact_response = self._session.get(
+                f"https://{self.iserv_url}/iserv/profile/public/edit#contact"
+            )
+            personal_information_instant_response = self._session.get(
+                f"https://{self.iserv_url}/iserv/profile/public/edit#instant"
+            )
+            personal_information_note_response = self._session.get(
+                f"https://{self.iserv_url}/iserv/profile/public/edit#note"
+            )
+        except Exception as e:
+            logging.error(f"Error retrieving user information: {e}")
+
+        user_info_soup = BeautifulSoup(user_info_response.text, "html.parser")
+        root = etree.HTML(str(user_info_soup))
+
+        # Groups
+        xpath_expr = "/html/body/div/div[2]/div[3]/div/div/div[2]/div/div/div/div/ul[1]"
+        matching_elements = root.xpath(xpath_expr)
+        matching_soup_elements = [
+            BeautifulSoup(etree.tostring(elem), "html.parser")
+            for elem in matching_elements
+        ]
+
+        groups_dict = {}
+        for soup in matching_soup_elements:
+            # Find the <a> tag
+            ul_tag = soup.find("ul")
+            a_tags = ul_tag.find_all("a")
+            for a_tag in a_tags:
+                text = a_tag.text
+                href = a_tag["href"]
+                groups_dict[text] = href
+
+        logging.info("Got Groups")
+
+        # Roles
+        xpath_expr = "/html/body/div/div[2]/div[3]/div/div/div[2]/div/div/div/div/ul[2]"
+        matching_elements = root.xpath(xpath_expr)
+        matching_soup_elements = [
+            BeautifulSoup(etree.tostring(elem), "html.parser")
+            for elem in matching_elements
+        ]
+        roles_list = []
+        for soup in matching_soup_elements:
+            # Find the <a> tag
+            ul_tag = soup.find("ul")
+            li_tags = ul_tag.find_all("li")
+            for li_tag in li_tags:
+                text = li_tag.text
+
+                roles_list.append(text)
+
+        logging.info("Got Roles")
+
+        # Rights
+        xpath_expr = "/html/body/div/div[2]/div[3]/div/div/div[2]/div/div/div/div/ul[3]"
+        matching_elements = root.xpath(xpath_expr)
+        matching_soup_elements = [
+            BeautifulSoup(etree.tostring(elem), "html.parser")
+            for elem in matching_elements
+        ]
+        rights_list = []
+        for soup in matching_soup_elements:
+            # Find the <a> tag
+            ul_tag = soup.find("ul")
+            li_tags = ul_tag.find_all("li")
+            for li_tag in li_tags:
+                text = li_tag.text
+
+                rights_list.append(text)
+
+        logging.info("Got Rights")
+
+        # Public information:
+        public_info_json = {}
+
+        soup = BeautifulSoup(personal_information_data_response.text, "html.parser")
+
+        ids_and_keys = [
+            ("publiccontact_title", "title"),
+            ("publiccontact_company", "company"),
+            ("publiccontact_birthday", "birthday"),
+            ("publiccontact_nickname", "nickname"),
+            ("publiccontact_class", "class"),
+        ]
+
+        for id, key in ids_and_keys:
+            try:
+                value = soup.find("input", id=id)["value"]
+                public_info_json[key] = value
+            except KeyError:
+                logging.warning(f"No data in {id}")
+                public_info_json[key] = ""
+
+        soup = BeautifulSoup(personal_information_address_response.text, "html.parser")
+
+        ids_and_keys = [
+            ("publiccontact_street", "street"),
+            ("publiccontact_zipcode", "zipcode"),
+            ("publiccontact_city", "city"),
+            ("publiccontact_country", "country"),
+        ]
+
+        for id, key in ids_and_keys:
+            try:
+                value = soup.find("input", id=id)["value"]
+                public_info_json[key] = value
+            except KeyError:
+                logging.warning(f"No data in {id}")
+                public_info_json[key] = ""
+
+        soup = BeautifulSoup(personal_information_instant_response.text, "html.parser")
+        ids_and_keys = [
+            ("publiccontact_icq", "icq"),
+            ("publiccontact_jabber", "jabber"),
+            ("publiccontact_msn", "msn"),
+            ("publiccontact_skype", "skype"),
+        ]
+
+        for id, key in ids_and_keys:
+            try:
+                value = soup.find("input", id=id)["value"]
+                public_info_json[key] = value
+            except KeyError:
+                logging.warning(f"No data in {id}")
+                public_info_json[key] = ""
+
+        soup = BeautifulSoup(personal_information_note_response.text, "html.parser")
+        ids_and_keys = [("publiccontact_note", "note")]
+
+        for id, key in ids_and_keys:
+
+            try:
+                value = soup.find("textarea", id=id).get_text()
+
+                public_info_json[key] = value
+            except KeyError:
+                logging.warning(f"No data in {id}")
+                public_info_json[key] = ""
+
+        soup = BeautifulSoup(personal_information_contact_response.text, "html.parser")
+        ids_and_keys = [
+            ("publiccontact_phone", "phone"),
+            ("publiccontact_mobilePhone", "mobilePhone"),
+            ("publiccontact_fax", "fax"),
+            ("publiccontact_mail", "mail"),
+            ("publiccontact_homepage", "homepage"),
+        ]
+
+        for id, key in ids_and_keys:
+            try:
+                value = soup.find("input", id=id)["value"]
+                public_info_json[key] = value
+            except KeyError:
+                logging.warning(f"No data in {id}")
+                public_info_json[key] = ""
+
+        soup = BeautifulSoup(personal_information_contact_response.text, "html.parser")
+        ids_and_keys = [("publiccontact__token", "_token")]
+
+        for id, key in ids_and_keys:
+            try:
+                value = soup.find("input", id=id)["value"]
+                public_info_json[key] = value
+            except KeyError:
+                logging.warning(f"No data in {id}")
+                public_info_json[key] = ""
+
+        logging.info("Got Public info")
+
+        user_info["Groups"] = groups_dict
+        user_info["Roles"] = roles_list
+        user_info["Rights"] = rights_list
+        user_info["Public_info"] = public_info_json
+        return user_info
+
+    def set_own_user_info(self, **settings):
+        """
+        Sets the user's own information with the provided settings.
+
+        :param settings: The settings to be applied to the user's information.
+        :type settings: dict
+        :Keyword Arguments:
+            * *title* (``str``) -- The title of the user.
+            * *company* (``str``) -- The company of the user.
+            * *birthday* (``str``) -- The birthday of the user.
+            * *nickname* (``str``) -- The nickname of the user.
+            * *_class* (``str``) -- The class of the user.
+            * *street* (``str``) -- The street of the user's address.
+            * *zipcode* (``str``) -- The zipcode of the user's address.
+            * *city* (``str``) -- The city of the user.
+            * *country* (``str``) -- The country of the user.
+            * *phone* (``str``) -- The phone number of the user.
+            * *mobilePhone* (``str``) -- The mobile phone number of the user.
+            * *fax* (``str``) -- The fax number of the user.
+            * *mail* (``str``) -- The email address of the user.
+            * *homepage* (``str``) -- The homepage of the user.
+            * *icq* (``str``) -- The ICQ number of the user.
+            * *jabber* (``str``) -- The Jabber ID of the user.
+            * *msn* (``str``) -- The MSN ID of the user.
+            * *skype* (``str``) -- The Skype ID of the user.
+            * *note* (``str``) -- The note about the user.
+
+        :return: The status code of the response from the server after setting the user information.
+        :rtype: int
+        """
+
+        if not self._session:
+            raise ValueError("Session is not initialized. Please log in first.")
+        try:
+
+            def modify_data(userinfo, settings0):
+
+                data = {
+                    "publiccontact[title]": userinfo["Public_info"]["title"],
+                    "publiccontact[company]": userinfo["Public_info"]["company"],
+                    "publiccontact[birthday]": userinfo["Public_info"]["birthday"],
+                    "publiccontact[nickname]": userinfo["Public_info"]["nickname"],
+                    "publiccontact[class]": userinfo["Public_info"]["class"],
+                    "publiccontact[street]": userinfo["Public_info"]["street"],
+                    "publiccontact[zipcode]": userinfo["Public_info"]["zipcode"],
+                    "publiccontact[city]": userinfo["Public_info"]["city"],
+                    "publiccontact[country]": userinfo["Public_info"]["country"],
+                    "publiccontact[phone]": userinfo["Public_info"]["phone"],
+                    "publiccontact[mobilePhone]": userinfo["Public_info"][
+                        "mobilePhone"
+                    ],
+                    "publiccontact[fax]": userinfo["Public_info"]["fax"],
+                    "publiccontact[mail]": userinfo["Public_info"]["mail"],
+                    "publiccontact[homepage]": userinfo["Public_info"]["homepage"],
+                    "publiccontact[icq]": userinfo["Public_info"]["icq"],
+                    "publiccontact[jabber]": userinfo["Public_info"]["jabber"],
+                    "publiccontact[msn]": userinfo["Public_info"]["msn"],
+                    "publiccontact[skype]": userinfo["Public_info"]["skype"],
+                    "publiccontact[note]": userinfo["Public_info"]["note"],
+                    "publiccontact[hidden]": "0",
+                    "publiccontact[actions][submit]": "",
+                    "publiccontact[_token]": urllib.parse.quote(
+                        userinfo["Public_info"]["_token"]
+                    ),
+                }
+
+                # Update data with settings0
+                for key, value in settings.items():
+                    if key == "title":
+                        data["publiccontact[title]"] = value
+                        logging.info("changed title to" + value)
+                    elif key == "company":
+                        data["publiccontact[company]"] = value
+                        logging.info("changed company to" + value)
+                    elif key == "birthday":
+                        data["publiccontact[birthday]"] = value
+                        logging.info("changed birthday to" + value)
+                    elif key == "nickname":
+                        data["publiccontact[nickname]"] = value
+                        logging.info("changed nickname to" + value)
+                    elif key == "_class":
+                        data["publiccontact[class]"] = value
+                        logging.info("changed class to" + value)
+                    elif key == "street":
+                        data["publiccontact[street]"] = value
+                        logging.info("changed street to" + value)
+                    elif key == "zipcode":
+                        data["publiccontact[zipcode]"] = value
+                        logging.info("changed zipcode to" + value)
+                    elif key == "city":
+                        data["publiccontact[city]"] = value
+                        logging.info("changed city to" + value)
+                    elif key == "country":
+                        data["publiccontact[country]"] = value
+                        logging.info("changed country to" + value)
+                    elif key == "phone":
+                        data["publiccontact[phone]"] = value
+                        logging.info("changed phone to" + value)
+                    elif key == "mobilePhone":
+                        data["publiccontact[mobilePhone]"] = value
+                        logging.info("changed mobilePhone to" + value)
+                    elif key == "fax":
+                        data["publiccontact[fax]"] = value
+                        logging.info("changed fax to" + value)
+                    elif key == "mail":
+                        data["publiccontact[mail]"] = value
+                        logging.info("changed mail to" + value)
+                    elif key == "homepage":
+                        data["publiccontact[homepage]"] = value
+                        logging.info("changed homepage to" + value)
+                    elif key == "icq":
+                        data["publiccontact[icq]"] = value
+                        logging.info("changed icq to" + value)
+                    elif key == "jabber":
+                        data["publiccontact[jabber]"] = value
+                        logging.info("changed jabber to" + value)
+                    elif key == "msn":
+                        data["publiccontact[msn]"] = value
+                        logging.info("changed msn to" + value)
+                    elif key == "skype":
+                        data["publiccontact[skype]"] = value
+                        logging.info("changed skype to" + value)
+                    elif key == "note":
+                        data["publiccontact[note]"] = value
+                        logging.info("changed note to" + value)
+
+                return data
+
+            userinfo = self.get_own_user_info()
+            data = modify_data(userinfo, settings)
+
+            headers = {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                "accept-language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
+                "cache-control": "max-age=0",
+                "content-type": "application/x-www-form-urlencoded",
+                "origin": "null",
+                "sec-ch-ua": '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"Windows"',
+                "sec-fetch-dest": "document",
+                "sec-fetch-mode": "navigate",
+                "sec-fetch-site": "same-origin",
+                "sec-fetch-user": "?1",
+                "upgrade-insecure-requests": "1",
+                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+            }
+
+            cookies = {
+                "IServSAT": self._IServSAT,
+                "IServSATId": self._IServSATId,
+                "IServSession": self._IServSession,
+            }
+            response = requests.post(
+                f"https://{self.iserv_url}/iserv/profile/public/edit",
+                headers=headers,
+                cookies=cookies,
+                data=data,
+                allow_redirects=True,
+            )
+            logging.info("Public info changed successfully")
+            return response.status_code
+        except Exception as e:
+            logging.error(f"Error setting user information: {e}")
+            raise ValueError("Error setting user information")
+
+    def get_notifications(self):
+        """
+        Retrieves notifications from the specified URL and returns them as a JSON object.
+        """
+        notifications = self._session.get(
+            f"https://{self.iserv_url}/iserv/user/api/notifications"
+        ).json()
+        logging.info("Got Notifications")
+        return notifications
+
+    def get_badges(self):
+        """
+        Retrieves the badges from the IServ server.
+
+        :return: A JSON object containing the badges.
+        """
+        badges = self._session.get(
+            f"https://{self.iserv_url}/iserv/app/navigation/badges"
+        ).json()
+        logging.info("Got Badges")
+        return badges
+
+    def read_all_notifications(self):
+        """
+        Reads all notifications from the server.
+
+        Returns:
+            dict: A JSON object containing the status.
+
+        Raises:
+            requests.exceptions.RequestException: If there is an error while making the request.
+        """
+        notifications = self._session.post(
+            f"https://{self.iserv_url}/iserv/notification/api/v1/notifications/readall",
+            cookies={
+                "IServSAT": self._IServSAT,
+                "IServSATId": self._IServSATId,
+                "IServSession": self._IServSession,
+            },
+        )
+        logging.info("Read all notifications")
+        return notifications
+
+    def read_notification(self, notification_id: int):
+        """
+        Sends a POST request to the IServ notification API to mark a specific notification as read.
+
+        Args:
+            notification_id (int): The ID of the notification to be marked as read. Note: notification_id can be returned from get_notifications()
+
+        Returns:
+            dict: The JSON response from the API call.
+
+        Raises:
+            requests.exceptions.RequestException: If there was an error making the API request.
+        """
+        notification = self._session.post(
+            f"https://{self.iserv_url}/iserv/notification/api/v1/notifications/{notification_id}/read",
+            cookies={
+                "IServSAT": self._IServSAT,
+                "IServSATId": self._IServSATId,
+                "IServSession": self._IServSession,
+            },
+        )
+        logging.info("read notification " + notification_id)
+        return notification
+
+    def get_disk_space(self) -> dict:
+        response = self._session.get(f"https://{self.iserv_url}/iserv/du/account")
+        soup = BeautifulSoup(response.text, "html.parser")
+        disk_json = soup.find("script", id="user-diskusage-data").get_text()
+        disk_json = json.loads(disk_json.strip("()"))
+
+        return disk_json
+
+    # Users
+
+    def get_user_profile_picture(self, user, output_folder: str):
+        """
+        Retrieves the profile picture of a user and saves it to the specified output folder.
+
+        This function checks if the user's avatar is in SVG format and saves it with the
+        appropriate file extension, otherwise, it assumes the image is in WEBP format.
+
+        Args:
+            user (str): The username of the user whose profile picture is to be retrieved.
+            output_folder (str): The directory path where the profile picture will be saved.
+
+        """
+        # Send a GET request to the URL that hosts the user's avatar
+        avatar = self._session.get(
+            f"https://{self.iserv_url}/iserv/core/avatar/user/{user}"
+        )
+
+        # Prepare the file path, replacing backslashes with forward slashes and removing trailing slashes
+        file_path = output_folder.replace("\\", "/").removesuffix("/") + "/"
+
+        # Check if the avatar is in SVG format
+        if "<svg" in avatar.text:
+            # If so, write the SVG content to a file with an SVG extension
+            with open(file_path + user + ".svg", "w") as f:
+                f.write(avatar.text)
+        else:
+            # If not, write the content to a file with a WEBP extension in binary mode
+            with open(file_path + user + ".webp", "wb") as f:
+                f.write(avatar.content)
+
+    def search_users(self, query):
+        """
+        Searches for users based on a query string and returns a list of dictionaries containing the user's name and URL.
+
+        Args:
+            query (str): The search query string.
+
+        Returns:
+            list: A list of dictionaries containing the user's name and URL.
+
+        Raises:
+            ValueError: If there are too many results and filter criteria need to be restricted.
+
+        Example:
+            >>> search_users("John")
+            [{'name': 'john.doe', 'user_url': 'https://{iserv_url}/iserv/addressbook/public/show/john-doe'}, {'name': 'john.smith', 'user_url': '/iserv/addressbook/public/show/john.smith'}]
+        """
+
+        query = urllib.parse.quote(query)
+        resonse = self._session.get(
+            f"https://{self.iserv_url}/iserv/addressbook/public?filter%5Bsearch%5D={query}",
+            allow_redirects=True,
+        )
+        soup = BeautifulSoup(resonse.text, "html.parser")
+
+        if "Too many results, please restrict filter criteria!" in resonse.text:
+            logging.error("Too many results, please restrict filter criteria!")
+            raise ValueError("Too many results, please restrict filter criteria!")
+
+        if "Zu viele Treffer, bitte Filterkriterien einschränken!" in resonse.text:
+            logging.error("Too many results, please restrict filter criteria!")
+            raise ValueError("Too many results, please restrict filter criteria!")
+
+        else:
+            table = str(soup.find("table").contents[3])
+
+            soup = BeautifulSoup(table, "html.parser")
+
+            rows = soup.find_all("tr")
+
+            # Initialize an empty list to store dictionaries
+            content_href_list = []
+
+            # Extract the first <a> tag from each row and store in a dictionary
+            for row in rows:
+                # Find the first <a> tag within the row
+                a_tag = row.find("a")
+                # If an <a> tag is found, extract content and href attributes
+                if a_tag:
+                    content_href_dict = {
+                        "name": a_tag.get_text(),
+                        "user_url": a_tag.get("href"),
+                    }
+                    content_href_list.append(content_href_dict)
+            logging.info("Searched users")
+            return content_href_list
+
+    def search_users_autocomplete(self, query, limit=50):
+        """
+        Perform autocomplete search for users based on the query and optional limit.
+
+        Args:
+            query (str): The search query.
+            limit (int, optional): The maximum number of results to return. Defaults to 50.
+
+        Returns:
+            dict: The JSON response containing the list of users matching the query.
+        """
+        users = self._session.get(
+            f"https://{self.iserv_url}/iserv/core/autocomplete/api?type=list,mail&query={query}&limit={str(limit)}"
+        ).json()
+        logging.info("Searched users (autocomplete)")
+        return users
+
+    def get_user_info(self, user):
+        """
+        A function to retrieve user information from a given URL and parse it into a dictionary.
+        :param user: str - The user for who the information is being retrieved.
+        :return: dict - A dictionary containing the user information.
+        """
+        response = self._session.get(
+            f"https://{self.iserv_url}/iserv/addressbook/public/show/{user}"
+        )
+        soup = BeautifulSoup(response.text, "html.parser")
+        table = soup.find("table")
+
+        if pd is None:
+            raise ImportError("pandas is required for get_user_info")
+
+        # Read the table into a list of DataFrames
+        try:
+            dfs = pd.read_html(StringIO(str(table)), flavor="bs4")
+            data = []
+            for df in dfs:
+                data_dict = dict(zip(df[0], df[1]))
+                data.append(data_dict)
+            logging.info("Got info of user " + user)
+        except ValueError:
+            logging.error("No such user found!")
+            raise ValueError("No such user found!")
+
+        return data[0]
+
+    # Email
+
+    def get_emails(self, path="INBOX", length=50, start=0, order="date", dir="desc"):
+        """
+        Retrieves emails from a specified path with optional parameters for length, start, order, and direction.
+
+        Parameters:
+            path (str): The path to retrieve emails from. Defaults to 'INBOX'.
+            length (int): The number of emails to retrieve. Defaults to 50.
+            start (int): The starting index for retrieving emails. Defaults to 0.
+            order (str): The order in which emails are listed. Defaults to 'date'.
+            dir (str): The direction of ordering, 'asc' for ascending and 'desc' for descending.
+
+        Returns:
+            dict: A JSON object containing the list of emails matching the specified criteria.
+        """
+        emails = self._session.get(
+            f"https://{self.iserv_url}/iserv/mail/api/message/list?path={path}&length={str(length)}&start={str(start)}&order%5Bcolumn%5D={order}&order%5Bdir%5D={dir}"
+        ).json()
+        logging.info("Got emails sccessfully!")
+        return emails
+
+    def get_email_info(self, path="INBOX", length=0, start=0, order="date", dir="desc"):
+        """
+        Retrieves email information from the specified path in the mailbox.
+
+        Args:
+            path (str, optional): The path in the mailbox to retrieve email information from. Defaults to "INBOX".
+            length (int, optional): The number of email messages to retrieve. Defaults to 0 (retrieve all messages).
+            start (int, optional): The index of the first email message to retrieve. Defaults to 0.
+            order (str, optional): The column to order the email messages by. Defaults to "date".
+            dir (str, optional): The direction of the ordering. Defaults to "desc" (descending).
+
+        Returns:
+            dict: A JSON object containing the email information.
+
+        """
+        email_info = self._session.get(
+            f"https://{self.iserv_url}/iserv/mail/api/message/list?path={path}&length={str(length)}&start={str(start)}&order%5Bcolumn%5D={order}&order%5Bdir%5D={dir}"
+        ).json()
+        logging.info("Got Email info!")
+        return email_info
+
+    def get_email_source(self, uid, path="INBOX"):
+        """
+        Retrieves the source code of an email message from the specified email path and message ID.
+
+        Args:
+            uid (int): The unique identifier of the email message.
+            path (str, optional): The path of the email folder. Defaults to "INBOX".
+
+        Returns:
+            str: The source code of the email message.
+        """
+        email_source = self._session.get(
+            f"https://{self.iserv_url}/iserv/mail/show/source?path={path}&msg={str(uid)}"
+        ).text
+        logging.info("Got Email source")
+        return email_source
+
+    def get_mail_folders(self):
+        """
+        Retrieves the list of mail folders from the IServ API.
+
+        :return: A JSON object containing the list of mail folders.
+        """
+        mail_folders = self._session.get(
+            f"https://{self.iserv_url}/iserv/mail/api/folder/list"
+        ).json()
+        logging.info("Got Email Folders")
+        return mail_folders
+
+    def send_email(
+        self,
+        receiver_email: str,
+        subject: str,
+        body: str,
+        html_body: str = None,
+        smtp_server: str = None,
+        smtps_port: int = 465,
+        attachments: list = None,
+    ):
+        """
+        Sends an email with the given parameters.
+
+        Args:
+            receiver_email (str): The email address of the recipient.
+            subject (str): The subject of the email.
+            body (str): The plain text body of the email.
+            html_body (str, optional): The HTML body of the email. Defaults to None.
+            smtp_server (str, optional): The SMTP server to use. If not provided, the default SMTP server will be used. Defaults to None.
+            smtps_port (int, optional): The port to use for SMTPS. Defaults to 465.
+            attachments (list, optional): A list of file paths of attachments to include in the email. Defaults to None.
+
+        Raises:
+            TypeError: If attachments is provided but is not a list.
+            smtplib.SMTPException: If there is an error sending the email.
+
+        Returns:
+            None
+
+        """
+
+        # Create a message
+        if attachments != None:
+            if type(attachments) != list and attachments:
+                logging.error("Attachments must be list!")
+                raise TypeError("Attachments must be list!")
+
+        if smtp_server == None:
+            smtp_server = self.iserv_url
+
+        message = MIMEMultipart()
+        message["From"] = f"{self.username}@{self.iserv_url}"
+        message["To"] = receiver_email
+        message["Subject"] = subject
+
+        # Attach plain text body
+        message.attach(MIMEText(body, "plain"))
+
+        if html_body:
+            # Attach HTML body
+            message.attach(MIMEText(html_body, "html"))
+
+        if attachments:
+            for attachment in attachments:
+                # Open the file in binary mode
+                with open(attachment, "rb") as file:
+                    part = MIMEBase("application", "octet-stream")
+                    part.set_payload(file.read())
+                # Encode the file data into base64
+                encoders.encode_base64(part)
+                # Set the filename parameter
+                part.add_header(
+                    "Content-Disposition",
+                    f'attachment; filename="{os.path.basename(attachment)}"',
+                )
+                # Add attachment to the message
+                message.attach(part)
+                logging.debug(attachment)
+
+        try:
+            # Connect to SMTP server using SMTPS port
+            with smtplib.SMTP_SSL(smtp_server, smtps_port) as server_ssl:
+                server_ssl.login(self.username, self._password)
+                server_ssl.sendmail(
+                    self.username + "@" + self.iserv_url,
+                    receiver_email,
+                    message.as_string(),
+                )
+                logging.info(
+                    "Email sent successfully via SMTPS (port {}).".format(smtps_port)
+                )
+
+        except smtplib.SMTPException as e:
+            logging.error("Failed to send email:", e)
+            raise smtplib.SMTPException(e)
+
+    # Calendar
+
+    def get_upcoming_events(self):
+        """
+        Retrieves the upcoming events from the IServ calendar API.
+
+        :return: A JSON object containing the upcoming events.
+        """
+        events = self._session.get(
+            f"https://{self.iserv_url}/iserv/calendar/api/upcoming"
+        ).json()
+        logging.info("Got upcomming events")
+        return events
+
+    def get_eventsources(self):
+        """
+        Retrieves the event sources from the calendar API.
+
+        :return: A JSON object containing the event sources.
+        """
+        eventsources = self._session.get(
+            f"https://{self.iserv_url}/iserv/calendar/api/eventsources"
+        ).json()
+        logging.info("Got eventsources")
+        return eventsources
+
+    def get_events(self, start: str, end: str):
+        """Returns all events from all eventsources (Calendars) as a JSON object
+
+        Args:
+            start (str): Start date
+            end (str): End date
+
+        Returns:
+            JSON: A JSON object with the data
+        """
+
+        events = self._session.get(
+            f"https://{self.iserv_url}/iserv/calendar/feed/calendar-multi",
+            params={
+                "start": dateutil.parser.parse(start).strftime("%Y-%m-%d"),
+                "end": dateutil.parser.parse(end).strftime("%Y-%m-%d"),
+            },
+        ).json()
+
+        logging.info("Got calendar events")
+        logging.debug(f"Got Calendar events from {start} to {end}")
+        return events
+
+    def search_event(self, query: str, start: str, end: str):
+        """Searches for events in all eventsources
+
+        Args:
+            query (str): The search term
+            start (str): The start date in any form parsable by dateutil. Time is also supported.
+            end (str): The end date in any form parsable by dateutil. Time is also supported.
+
+        Returns:
+            JSON: All found events
+        """
+        events = self._session.get(
+            f"https://{self.iserv_url}/iserv/calendar/api/lookup_event",
+            params={
+                "summary": query,
+                "start": dateutil.parser.parse(start, yearfirst=True).isoformat(
+                    timespec="microseconds"
+                )[:-3]
+                + "Z",  # Used to get this: 2025-09-24T22:59:59.999Z format
+                "end": dateutil.parser.parse(end, yearfirst=True).isoformat(
+                    timespec="microseconds"
+                )[:-3]
+                + "Z",
+            },
+        )
+        logging.info("Looked up calendar events")
+        logging.debug(
+            f"Looked up Calendar events with query {query} from {start} to {end}"
+        )
+        return events.json()
+
+    def get_calendar_plugin_events(self, plugin: str, start: str, end: str):
+        """Lists all events produced by a plugin.
+        Plugins can be retrieved from the output of
+        `get_eventsources()` where `id` is the plugin id if the `type` is `plugin`.
+
+        Args:
+            plugin (str): The name of the plugin
+            start (str): The start date of the results
+            end (str): The end date of the results
+
+        Returns:
+            JSON: Events
+        """
+        events = self._session.get(
+            f"https://{self.iserv_url}/iserv/calendar/feed/plugin",
+            params={
+                "plugin": plugin,
+                "start": dateutil.parser.parse(start).isoformat(),
+                "end": dateutil.parser.parse(end).isoformat(),
+            },
+        )
+        logging.debug(f"Got {plugin} envents from {start} to {end}")
+        logging.info("Got calendar plugin events")
+        return events.json()
+
+    def delete_event(
+        self, uid: str, _hash: str, calendar: str, start: str, series: bool = False
+    ):
+        """Deletes a specified event or reocurring event series.
+
+        Args:
+            uid (str): uid of the event
+            _hash (str): hash of the event
+            calendar (str): calendar(_id) of the event
+            start (str): The beginning date and time (add time if you are having trouble deleting single events)
+            series (bool, optional): Delete reocurring events.
+
+        Returns:
+            JSON: Status
+        """
+
+        events = self._session.post(
+            f"https://{self.iserv_url}/iserv/calendar/delete",
+            params={
+                "uid": uid,
+                "hash": _hash,
+                "cal": calendar,
+                "start": dateutil.parser.parse(start).strftime("%Y-%m-%dT%H:%M:%S%z"),
+                "edit_series": "series" if series else "single",
+            },
+            cookies={
+                "IServSAT": self._IServSAT,
+                "IServSATId": self._IServSATId,
+                "IServSession": self._IServSession,
+            },
+        )
+        logging.debug(f"Deleted event {uid} with hash {_hash} in calendar {calendar}")
+        logging.debug(f"Status code: {events.status_code}")
+        logging.info("Event deleted")
+        return events.json()
+
+    def create_event(
+        self,
+        subject: str,
+        calendar: str,
+        start: str,
+        end: str,
+        category: str = "",
+        location: str = "",
+        alarms: list[AlarmType] = [],
+        isAllDayLong: bool = False,
+        description: str = "",
+        participants: list = [],
+        show_me_as: Literal["OPAQUE", "TRANSPARENT"] = "OPAQUE",
+        privacy: Literal["PUBLIC", "CONFIDENTIAL", "PRIVATE"] = "PUBLIC",
+        recurring: Recurring = {},
+    ):
+        """
+        Create a new event in the IServ calendar.
+
+        This method constructs and submits an HTTP request to the IServ calendar
+        API to create a new event with optional alarms, recurring patterns,
+        and participants.
+
+        Parameters:
+            subject (str): The title or subject of the event.
+
+            calendar (str): The ID of the calendar where the event will be created.
+
+            start (str): Event start datetime in any format parsable by `dateutil.parser`.
+
+            end (str): Event end datetime in any format parsable by `dateutil.parser`.
+
+            category (str, optional): Category or tag for the event. Defaults to "".
+
+            location (str, optional): Location of the event. Defaults to "".
+
+            alarms (list[AlarmType], optional): List of alarms for the event.
+            Each alarm can be a string `("0M", "5M", "15M", "30M", "1H", "2H", "12H", "1D", "2D", "7D")`
+            or a dictionary defining custom alarms (`custom_date_time` or `custom_interval`).
+            custom_date_time must have this structure:
+            ```python
+            alarms = [{"custom_date_time": {"dateTime": "dd.mm.YYYY HH:MM"}}]
+            ```
+            custom_interval must have this structure:
+            ```python
+            alarms = [{
+                "custom_interval": {
+                    "interval": {
+                        "days": int,
+                        "hours": int,
+                        "minutes": int,
+                    },
+                    "before": bool,
+                }
+            }]
+            ```
+            Defaults to [].
+
+            isAllDayLong (bool, optional): Whether the event lasts all day. Defaults to False.
+
+            description (str, optional): Detailed description of the event. Defaults to "".
+
+            participants (list, optional): List of participant identifiers (usernames or emails)
+                to invite to the event. Defaults to [].
+
+            show_me_as (Literal["OPAQUE", "TRANSPARENT"], optional): Visibility of the event
+                on your calendar. "OPAQUE" blocks time, "TRANSPARENT" shows availability.
+                Defaults to "OPAQUE".
+
+            privacy (Literal["PUBLIC", "CONFIDENTIAL", "PRIVATE"], optional): Privacy level
+                of the event. Defaults to "PUBLIC".
+
+            recurring (Recurring, optional): Dictionary defining recurring event rules.
+                Structure:
+                ```python
+                    {
+                        "intervalType": "NO|DAILY|WEEKDAYS|WEEKLY|MONTHLY|YEARLY",
+                        "interval": int,           # Only for types other than NO/WEEKDAYS
+                        "monthlyIntervalType": "BYMONTHDAY|BYDAY",  # Required for MONTHLY
+                        "monthDayInMonth": int,    # Required if BYMONTHDAY
+                        "monthInterval": str,      # Required if BYDAY
+                        "monthDay": str,           # Day of week if BYDAY
+                        "recurrenceDays": str,     # Comma-separated weekdays if WEEKLY
+                        "endType": "NEVER|COUNT|UNTIL",
+                        "endInterval": int,        # Required if COUNT
+                        "untilDate": str           # Required if UNTIL, "DD.MM.YYYY"
+                    }
+                ```
+
+        Raises:
+            ValueError: If recurring or alarm parameters are malformed.
+            Exception: If a participant cannot be found via autocomplete.
+
+        Notes:
+            - All dates and times are automatically parsed and formatted to IServ's expected format.
+            - The method prints any error messages returned by the IServ API.
+        """
+
+        token_request = self._session.get(
+            f"https://{self.iserv_url}/iserv/calendar/create_simple",
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:143.0) Gecko/20100101 Firefox/143.0",
+                "Accept": "*/*",
+                "Accept-Language": "en-US,en;q=0.5",
+                "X-Requested-With": "XMLHttpRequest",
+                "Connection": "keep-alive",
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "same-origin",
+                "Pragma": "no-cache",
+                "Cache-Control": "no-cache",
+            },
+            cookies={
+                "IServSAT": self._IServSAT,
+                "IServSATId": self._IServSATId,
+                "IServSession": self._IServSession,
+            },
+        )
+        tokensoup = BeautifulSoup(
+            token_request.text, "html.parser"
+        )  # , Ahh my favourite kind of soup
+
+        token = tokensoup.find("input", {"id": "eventForm__token"}).get("value")
+
+        # Minimal data
+        data = {
+            "eventForm[uid]": "",
+            "eventForm[etag]": "",
+            "eventForm[hash]": "",
+            "eventForm[calendarOrg]": "",
+            "eventForm[startOrg]": "",
+            "eventForm[action]": "create",
+            "eventForm[seriesAction]": "",
+            "eventForm[invited]": "",
+            "eventForm[subscription]": "",
+            "eventForm[subject]": subject,
+            "eventForm[calendar]": calendar,
+            "eventForm[category]": category,
+            "eventForm[location]": location,
+            "eventForm[startDate]": dateutil.parser.parse(start).strftime("%d.%m.%Y"),
+            "eventForm[startTime]": dateutil.parser.parse(start).strftime("%H:%M"),
+            "eventForm[endDate]": dateutil.parser.parse(end).strftime("%d.%m.%Y"),
+            "eventForm[endTime]": dateutil.parser.parse(end).strftime("%H:%M"),
+            "eventForm[description]": description,
+            "eventForm[showMeAs]": show_me_as,
+            "eventForm[privacy]": privacy,
+            "eventForm[recurring][intervalType]": "NO",
+            "eventForm[recurring][interval]": "1",
+            "eventForm[recurring][recurrenceDays][]": "FR",
+            "eventForm[recurring][monthlyIntervalType]": "BYMONTHDAY",
+            "eventForm[recurring][monthDayInMonth]": "26",
+            "eventForm[recurring][endType]": "NEVER",
+            "eventForm[submit]": "",
+            "eventForm[_token]": token,
+        }
+        # Get Params ready
+        # recurring = {
+        #     "intervalType": "NO/DAILY/WEEKDAYS/WEEKLY/MONTHLY/YEARLY",
+        #     "interval": 1 - 30,  # Not when WEEKDAYS is selected
+        #     "monthlyIntervalType": "BYMONTHDAY/BYDAY",  # When MONTHLY is selected
+        #     "monthDayInMonth": 1-31 # When BYMONTHDAY.
+        #     "monthInterval": "1/2/3/4/-1",  # Every n'th day -1 is last When BYDAY is selected
+        #     "monthDay": "MO/TU/WE/TH/FR/SA/SU",  # When BYDAY is selected
+        #     "recurrenceDays": "MO/TU/WE/TH/FR/SA/SU",  # When WEEKLY is selected
+        #     "endType": "NEVER/COUNT/UNTIL",
+        #     "endInterval": int,  # When COUNT is selected
+        #     "untilDate": "DD.MM.YYYY",  # When UNTIL is slected
+        # }
+
+        if recurring != {}:
+            # Check values
+            if "intervalType" not in recurring:
+                raise ValueError("intervalType must be present!")
+            if (
+                recurring["intervalType"] != "WEEKDAYS"
+                and recurring["intervalType"] != "NO"
+                and "interval" not in recurring
+            ):
+                raise ValueError("interval must be present!")
+
+            if "interval" in recurring:
+                if recurring["interval"] not in range(1, 31):
+                    raise ValueError("Interval can only be between 1 and 30")
+            if recurring["intervalType"] == "MONTHLY":
+                if "monthlyIntervalType" not in recurring:
+                    raise ValueError("monthlyIntervalType must be present!")
+                if recurring["monthlyIntervalType"] == "BYDAY":
+                    if "monthInterval" not in recurring:
+                        raise ValueError("monthInterval must be present!")
+                    if "monthDay" not in recurring:
+                        raise ValueError("monthDay must be present!")
+                if recurring["monthlyIntervalType"] == "BYMONTHDAY":
+                    if "monthDayInMonth" not in recurring:
+                        raise ValueError("monthDayInMonth must be present!")
+            if recurring["intervalType"] == "WEEKLY":
+                if "recurrenceDays" not in recurring:
+                    raise ValueError("recurrenceDays must be present!")
+            if recurring["intervalType"] != "NO":
+                if "endType" not in recurring:
+                    raise ValueError("endType must be present!")
+
+                if recurring["endType"] == "COUNT":
+                    if "endInterval" not in recurring:
+                        raise ValueError("endInterval must be present!")
+
+                if recurring["endType"] == "UNTIL":
+                    if "untilDate" not in recurring:
+                        raise ValueError("untilDate must be present!")
+            # Set values
+            try:
+                data["eventForm[recurring][intervalType]"] = recurring["intervalType"]
+
+            except KeyError:
+                pass
+            try:
+                data["eventForm[recurring][interval]"] = recurring["interval"]
+            except KeyError:
+                pass
+            try:
+                data["eventForm[recurring][monthlyIntervalType]"] = recurring[
+                    "monthlyIntervalType"
+                ]
+            except KeyError:
+                pass
+            try:
+                data["eventForm[recurring][monthDayInMonth]"] = recurring[
+                    "monthDayInMonth"
+                ]
+            except KeyError:
+                pass
+            try:
+                data["eventForm[recurring][monthInterval]"] = recurring["monthInterval"]
+            except KeyError:
+                pass
+            try:
+                data["eventForm[recurring][monthDay]"] = recurring["monthDay"]
+            except KeyError:
+                pass
+            try:
+                data["eventForm[recurring][recurrenceDays][]"] = recurring[
+                    "recurrenceDays"
+                ]
+            except KeyError:
+                pass
+            try:
+                data["eventForm[recurring][endType]"] = recurring["endType"]
+            except KeyError:
+                pass
+            try:
+                data["eventForm[recurring][endInterval]"] = recurring["endInterval"]
+            except KeyError:
+                pass
+            try:
+                data["eventForm[recurring][untilDate]"] = recurring["untilDate"]
+            except KeyError:
+                pass
+
+        # Very fun alarm parser
+        if alarms != []:
+            for i, alarm in enumerate(alarms):
+                if isinstance(
+                    alarm, str
+                ):  # Check for anything that's a string but not a valid timed alarm.
+                    if alarm not in [
+                        "0M",
+                        "5M",
+                        "15M",
+                        "30M",
+                        "1H",
+                        "2H",
+                        "12H",
+                        "1D",
+                        "2D",
+                        "7D",
+                    ]:
+                        raise ValueError(
+                            "At least one timed alarm is not one of 0M,5M,15M,30M,1H,2H,12H,1D,2D or 7D."
+                        )
+                    else:  # Add timed alarm
+                        data[f"eventForm[alarms][{i}][trigger][type]"] = (
+                            f"PT{alarm}"  # Add alarm itself
+                        )
+
+                        data[f"eventForm[alarms][{i}][trigger][interval][days]"] = "0"
+                        data[f"eventForm[alarms][{i}][trigger][interval][hours]"] = "0"
+                        data[f"eventForm[alarms][{i}][trigger][interval][minutes]"] = (
+                            "15"
+                        )
+                        data[f"eventForm[alarms][{i}][trigger][before]"] = "1"
+                        data[f"eventForm[alarms][{i}][trigger][dateTime]"] = str(
+                            dateutil.parser.parse(start).strftime("%d.%m.%Y+00:00")
+                        )
+
+                if isinstance(alarm, dict):  # Check for the two custom alarm types
+                    if "custom_date_time" in alarm:
+                        if (
+                            "dateTime" not in alarm["custom_date_time"]
+                        ):  # Check if dateTime exists. This does not check for a valid value, which is a flaw, but I trust the other devs and the date parser.
+                            raise ValueError(
+                                "custom_date_time alarm dict is malformed."
+                            )
+
+                        data[f"eventForm[alarms][{i}][trigger][type]"] = (
+                            "custom_date_time"
+                        )
+                        data[f"eventForm[alarms][{i}][trigger][interval][days]"] = "0"
+                        data[f"eventForm[alarms][{i}][trigger][interval][hours]"] = "0"
+                        data[f"eventForm[alarms][{i}][trigger][interval][minutes]"] = (
+                            "15"
+                        )
+                        data[f"eventForm[alarms][{i}][trigger][before]"] = "1"
+                        data[f"eventForm[alarms][{i}][trigger][dateTime]"] = (
+                            str(  # This is the only value being used the other ones are junk but still needed or iserv will complain
+                                dateutil.parser.parse(
+                                    alarm["custom_date_time"]["dateTime"]
+                                ).strftime("%d.%m.%Y %H:%M")
+                            )
+                        )
+
+                    else:
+                        ValueError("Alarm dict malformed! Missing: custom_date_time")
+
+                    if (
+                        "custom_interval" in alarm
+                    ):  # Same issue here. I Could fix it but I'm tired and doing this in my free time so glhf :)
+                        if "interval" in alarm["custom_interval"]:
+                            if not all(
+                                x in alarm["custom_interval"]["interval"]
+                                for x in ["days", "hours", "minutes"]
+                            ):  # Check if not all three strings are in alarm["custom_interval"]
+                                raise ValueError(
+                                    "the `inteval` dict in `custom_interval` in alarms is malformed."
+                                )
+
+                        if "before" not in alarm["custom_interval"]:
+                            raise ValueError("custom_interval needs a `before` key.")
+
+                        data[f"eventForm[alarms][{i}][trigger][type]"] = (
+                            "custom_interval"
+                        )
+                        data[f"eventForm[alarms][{i}][trigger][interval][days]"] = str(
+                            alarm["custom_interval"]["interval"]["days"]
+                        )  # Used
+                        data[f"eventForm[alarms][{i}][trigger][interval][hours]"] = str(
+                            alarm["custom_interval"]["interval"]["hours"]
+                        )  # Used
+                        data[f"eventForm[alarms][{i}][trigger][interval][minutes]"] = (
+                            str(alarm["custom_interval"]["interval"]["minutes"])
+                        )
+                        data[f"eventForm[alarms][{i}][trigger][before]"] = (
+                            "1" if alarm["custom_interval"]["before"] else "0"
+                        )  # Used
+                        data[f"eventForm[alarms][{i}][trigger][dateTime]"] = str(
+                            dateutil.parser.parse(start).strftime("%d.%m.%Y+00:00")
+                        )  # Ignored
+                    else:
+                        ValueError("Alarm dict malformed! Missing: custom_interval")
+
+        # Actually simple participant parser
+        if participants != []:
+            for i, participant in enumerate(participants):
+                try:
+                    participants[i] = self.search_users_autocomplete(participant, 1)[0][
+                        "value"
+                    ]
+                except IndexError:
+                    raise Exception(f"User `{participant}` not found!")
+
+        data["eventForm[participants][]"] = participants
+
+        # data = urllib.parse.urlencode(data)
+        response = self._session.post(
+            f"https://{self.iserv_url}/iserv/calendar/create",
+            data=data,
+            cookies={
+                "IServSAT": self._IServSAT,
+                "IServSATId": self._IServSATId,
+                "IServSession": self._IServSession,
+            },
+            params={
+                "subject": subject,
+                "calendar": calendar,
+                "start": dateutil.parser.parse(start).strftime("%d.%m.%Y"),
+                "end": dateutil.parser.parse(end).strftime("%d.%m.%Y"),
+                "startTime": dateutil.parser.parse(start).strftime("%H:%M"),
+                "endTime": dateutil.parser.parse(end).strftime("%H:%M"),
+                "allDay": isAllDayLong,
+            },
+        )
+
+        eventsoup = BeautifulSoup(response.text, "html.parser")
+        try:
+            error = eventsoup.find("div", {"data-type": "error"})
+            print(error.text)
+        except AttributeError:
+            pass
+
+    # Misc
+
+    def get_conference_health(self):
+        """
+        Get the health status of the conference API endpoint.
+
+        :return: JSON response containing the health status of the API
+        """
+        health = self._session.get(
+            f"https://{self.iserv_url}/iserv/videoconference/api/health"
+        ).json()
+        logging.info("Got Conference Health")
+        return health
+
+    def file(self, davurl="default", username="default", password="default", path="/"):
+        """
+        A function that initializes a WebDAV client with the provided or default credentials and returns the client object.
+
+        Parameters:
+            davurl (str): The WebDAV URL. Default is "default".
+            username (str): The username for authentication. Default is "default".
+            password (str): The password for authentication. Default is "default".
+            path (str): The path for the WebDAV client. Default is "/".
+
+        Returns:
+            WebDAV client object: A WebDAV client object initialized with the provided or default credentials.
+        """
+        if wc is None:
+            raise ImportError("webdavclient3 is required for file()")
+
+        try:
+            davurl = "webdav." + self.iserv_url if davurl == "default" else davurl
+            username = self.username if username == "default" else username
+            password = self._password if password == "default" else password
+            options = {
+                "webdav_hostname": "https://" + davurl,
+                "webdav_login": username,
+                "webdav_password": password,
+            }
+            self.__DAVclient = wc.Client(options)
+            logging.info("Files initiated")
+            return self.__DAVclient
+        except WebDavException as e:
+            logging.error("Exception at file (webdav): " + str(e))
+            raise ValueError("Exception at file (webdav): " + str(e))
+
+    def get_folder_size(self, path: str) -> dict:
+        response = self._session.get(
+            f"https://{self.iserv_url}/iserv/file/calc?path={path}"
+        )
+        return response.json()
+
+    def get_groups(self) -> dict:
+
+        groups = {}
+        response = self._session.get(
+            f"https://{self.iserv_url}/iserv/profile/grouprequest/add"
+        )
+        soup = BeautifulSoup(response.text, "html.parser")
+        select = soup.find(
+            "select",
+            class_="select2",
+        )
+        options = select.children
+        for option in options:
+            groups[option.text] = option["value"]
+        return groups
