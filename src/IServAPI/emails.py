@@ -2,9 +2,12 @@ from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import json
 import logging
 import os
 import smtplib
+
+from bs4 import BeautifulSoup
 
 
 class Emails:
@@ -25,9 +28,13 @@ class Emails:
         Returns:
             dict: A JSON object containing the list of emails matching the specified criteria.
         """
-        emails = self.api._session.get(
+        emails_html = self.api._session.get(
             f"https://{self.api.iserv_url}/iserv/mail/api/message/list?path={path}&length={str(length)}&start={str(start)}&order%5Bcolumn%5D={order}&order%5Bdir%5D={dir}"
-        ).json()
+        ).text
+        email_soup = BeautifulSoup(emails_html, "html.parser")
+        emails = email_soup.find("script", id="php-data").string.strip()
+        emails = json.loads(emails)
+
         logging.info("Got emails sccessfully!")
         return emails
 
@@ -119,7 +126,7 @@ class Emails:
                 raise TypeError("Attachments must be list!")
 
         if smtp_server == None:
-            smtp_server = self.iserv_url
+            smtp_server = self.api.iserv_url
 
         message = MIMEMultipart()
         message["From"] = f"{self.api.username}@{self.api.iserv_url}"
@@ -150,19 +157,14 @@ class Emails:
                 message.attach(part)
                 logging.debug(attachment)
 
-        try:
-            # Connect to SMTP server using SMTPS port
-            with smtplib.SMTP_SSL(smtp_server, smtps_port) as server_ssl:
-                server_ssl.login(self.api.username, self.api._password)
-                server_ssl.sendmail(
-                    self.api.username + "@" + self.api.iserv_url,
-                    receiver_email,
-                    message.as_string(),
-                )
-                logging.info(
-                    "Email sent successfully via SMTPS (port {}).".format(smtps_port)
-                )
-
-        except smtplib.SMTPException as e:
-            logging.error("Failed to send email:", e)
-            raise smtplib.SMTPException(e)
+        # Connect to SMTP server using SMTPS port
+        with smtplib.SMTP_SSL(smtp_server, smtps_port) as server_ssl:
+            server_ssl.login(self.api.username, self.api._password)
+            server_ssl.sendmail(
+                self.api.username + "@" + self.api.iserv_url,
+                receiver_email,
+                message.as_string(),
+            )
+            logging.info(
+                "Email sent successfully via SMTPS (port {}).".format(smtps_port)
+            )
