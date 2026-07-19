@@ -39,7 +39,7 @@ class Notifications:
         """
         notifications = self.api._session.post(
             f"https://{self.api.iserv_url}/iserv/notification/api/v1/notifications/readall",
-        )
+        ).json()
         logging.info("Read all notifications")
         return notifications
 
@@ -58,6 +58,6 @@ class Notifications:
         """
         notification = self.api._session.post(
             f"https://{self.api.iserv_url}/iserv/notification/api/v1/notifications/{notification_id}/read",
-        )
+        ).json()
         logging.info("read notification " + str(notification_id))
         return notification
