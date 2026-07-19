@@ -6,3 +6,6 @@ test.py
 dist
 .env
 experiments
+.coverage
+coverage.json
+.vscode
