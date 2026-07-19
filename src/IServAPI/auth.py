@@ -2,6 +2,8 @@ import logging
 from dotenv import load_dotenv
 import requests
 import re
+from . import exceptions
+from os import getenv
 
 
 class AuthClient:
@@ -32,10 +34,16 @@ class AuthClient:
         """
 
         try:
-            # # Perform initial GET request to obtain login page and CSRF tokens if present
-            # base_response = self._session.get(
-            #     f"https://{self.iserv_url}/iserv/auth/login"
-            # )
+            testIServResponse = self._session.head(f"https://{self.iserv_url}/iserv/")
+            if getenv("SKIP_ISERV_CHECK") != "1":
+                if (
+                    testIServResponse.status_code != 302
+                    and "/iserv/auth/auth?_iserv_app_url"
+                    not in testIServResponse.headers
+                ):
+                    raise exceptions.AuthError(
+                        "Could not validate IServ Sever set `SKIP_ISERV_CHECK` to 1 to skip this check"
+                    )
 
             # Prepare login credentials to send with POST request
             login_data = {"_username": self.username, "_password": self._password}
@@ -47,7 +55,9 @@ class AuthClient:
 
             # Check if the login has failed, usually due to incorrect credentials
             if "Anmeldung fehlgeschlagen!" in login_response.text:
-                raise ValueError("Login failed! Probably wrong password.")
+                raise exceptions.AuthError(
+                    "Login failed! Probably wrong username or password."
+                )
 
         except requests.exceptions.ConnectionError as e:
             # Handle connection errors during the login process
@@ -100,16 +110,6 @@ class AuthClient:
             or self._IServSATId == None
             or self._IServSession == None
         ):
-            raise Exception("Failed to login!")
+            raise exceptions.AuthError("Failed to login!")
         logging.info("Cookies extracted successfully!")
         return
-
-
-if __name__ == "__main__":
-    from os import getenv
-    import dotenv
-
-    load_dotenv()
-
-    client = AuthClient(getenv("username"), getenv("password"), "gymsf.de")
-    pass
