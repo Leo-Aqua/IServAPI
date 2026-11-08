@@ -1,8 +1,8 @@
-requests 
-logging
-bs4
+requests
+beautifulsoup4
 lxml
-webdavclient
+webdavclient3
 pandas
+html5lib
 python-dateutil
-typing
+python-dotenv

@@ -1,6 +1,6 @@
 import pytest
+import requests
 import requests_mock
-from requests.exceptions import ConnectionError
 
 from IServAPI.auth import AuthClient
 from IServAPI.exceptions import AuthError
@@ -15,8 +15,19 @@ def base_mock():
 
 class TestAuth:
 
-def test_login_success(self, base_mock):
+    def test_login_success(self, base_mock, monkeypatch):
         iserv_url = "demo.iserv.de"
+
+        # requests_mock does not store response cookies in the session's cookie jar,
+        # so hand the client a known session and set the cookies on it directly.
+        session = requests.Session()
+        monkeypatch.setattr("IServAPI.auth.requests.Session", lambda: session)
+
+        def set_session_cookies(request, context):
+            session.cookies.set("IServSAT", "mocked_sat_token")
+            session.cookies.set("IServSATId", "mocked_sat_id")
+            session.cookies.set("IServSession", "mocked_session_id")
+            return "Dashboard"
 
         # 1. Mock host validation check.
         # CRITICAL: We pass complete URL strings for the Location headers 
@@ -59,11 +70,7 @@ def test_login_success(self, base_mock):
         base_mock.get(
             fake_redirect_target,
             status_code=200,
-            cookies={
-                "IServSAT": "mocked_sat_token",
-                "IServSATId": "mocked_sat_id",
-                "IServSession": "mocked_session_id",
-            }
+            text=set_session_cookies,
         )
 
         # Act
@@ -99,9 +106,12 @@ def test_login_success(self, base_mock):
         iserv_url = "thisurlwillhopefullyneverexist.local"
 
         # Mock a connection failure at the very first step
-        base_mock.head(f"https://{iserv_url}/iserv/", exc=ConnectionError)
+        base_mock.head(
+            f"https://{iserv_url}/iserv/", exc=requests.exceptions.ConnectionError
+        )
 
-        with pytest.raises(ConnectionError):
+        # AuthClient re-raises connection problems as the built-in ConnectionError
+        with pytest.raises(ConnectionError, match="Error establishing connection"):
             AuthClient("testuser", "password", iserv_url)
 
     def test_wrong_url_validation_failure(self, base_mock, monkeypatch):
@@ -120,4 +130,13 @@ def test_login_success(self, base_mock):
             AuthError,
             match=r"Could not validate IServ.*SKIP_ISERV_CHECK",
         ):
+            AuthClient("testuser", "password", iserv_url)
+
+    def test_server_check_rejects_non_redirect(self, base_mock, monkeypatch):
+        iserv_url = "www.example.com"
+        monkeypatch.delenv("SKIP_ISERV_CHECK", raising=False)
+        # An ordinary website answers /iserv/ without redirecting to the IServ login
+        base_mock.head(f"https://{iserv_url}/iserv/", status_code=200)
+
+        with pytest.raises(AuthError, match="Could not validate IServ server"):
             AuthClient("testuser", "password", iserv_url)

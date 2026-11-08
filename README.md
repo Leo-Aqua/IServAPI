@@ -703,6 +703,13 @@ Contributions are welcome! If you'd like to contribute to this project, please f
 
 a pull request. Make sure to follow the existing code style and add appropriate tests for new functionality.
 
+To run the tests:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
 
 ---
 
