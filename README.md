@@ -52,6 +52,9 @@ print(user_info)
       - [Search users autocomplete](#search-users-autocomplete)
       - [Get other users information](#get-other-users-information)
     - ### Email
+      - [Get mailboxes](#get-mailboxes)
+      - [Get messages](#get-messages)
+      - [Get a message](#get-a-message)
       - [Get emails](#get-emails)
       - [Get general Information about emails](#get-general-information-about-emails)
       - [Get email source](#get-email-source)
@@ -61,6 +64,7 @@ print(user_info)
       - [Get upcoming events](#get-upcoming-events)
       - [Get all eventsources](#get-all-eventsources)
       - [Get events](#get-events)
+      - [Get events of one calendar](#get-events-of-one-calendar)
       - [Search event](#search-for-events)
       - [Get plugin events](#get-events-by-plugin)
       - [Delete event](#delete-event)
@@ -226,6 +230,33 @@ Get someone else's public information this includes everything they heve set in 
 
 ### Email
 
+#### Get mailboxes
+
+```python
+mailboxes = get_mailboxes(account=None)
+```
+
+Retrieves all mail folders with unread and total counts (mail API v2). `account` defaults to the own mail address (read from the IServ mail app, falling back to `<username>@<iserv_url>`).
+
+
+#### Get messages
+
+```python
+messages = get_messages(path="INBOX", limit=50, offset=0, sort="date", order="desc", query=None, search_fields=("subject", "from", "to"), account=None)
+```
+
+Retrieves the messages of a mail folder (mail API v2). With `query` the messages are searched in `search_fields`; add `"body"` for a (slower) full text search.
+
+
+#### Get a message
+
+```python
+message = get_message(uid, path="INBOX", account=None)
+```
+
+Retrieves a single message with envelope, plain/HTML content and attachment list (mail API v2).
+
+
 #### Get emails
 
 ```python
@@ -241,7 +272,7 @@ Retrieves emails from a specified path with optional parameters for length, star
 email_info = get_email_info(path="INBOX", length=0, start=0, order="date", dir="desc")
 ```
 
-Retrieves email information from the specified path in the mailbox. For example: unread emails.
+Retrieves email information from the specified path in the mailbox. For example: unread emails. **Deprecated:** use `get_messages()` or `get_mailboxes()`.
 
 
 #### Get email source
@@ -259,7 +290,7 @@ Retrieves the source code of an email message from the specified email path and 
 mail_folders = get_mail_folders()
 ```
 
-Retrieves the list of mail folders.
+Retrieves the list of mail folders. **Deprecated:** use `get_mailboxes()`.
 
 
 #### Send Email
@@ -289,10 +320,19 @@ Retrieves the upcoming events from the IServ calendar API.
 #### Get events
 
 ```python
-events = get_events(start="2024-01-01", end="2025-12-31")
+events = get_events(start="2024-01-01", end="2025-12-31", calendars=None)
 ```
 
-Retrieves all events of all eventsources in the specified timeframe.
+Retrieves all events of all calendars (or only the given calendar IDs) in the specified timeframe.
+
+
+#### Get events of one calendar
+
+```python
+events = get_calendar_appointments(calendar="/my.iserv.account/home", start="2024-01-01", end="2025-12-31")
+```
+
+Retrieves the events of a single calendar. Calendar IDs are returned by `get_eventsources()`.
 
 
 ---
