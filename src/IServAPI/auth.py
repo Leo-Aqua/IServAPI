@@ -1,17 +1,32 @@
+import html
 import logging
 from dotenv import load_dotenv
 import requests
 import re
+from urllib.parse import urljoin
+from bs4 import BeautifulSoup
 from . import exceptions
 from os import getenv
+
+# Seconds to wait for the IServ server before giving up on a request
+TIMEOUT = 30
+
+_DIGIT_FIELD = re.compile(r"digit_?(\d+)\]?$")
+_META_REFRESH = re.compile(
+    r"""<meta[^>]+http-equiv=["']?refresh["']?[^>]*content=["'][^"']*url=([^"'\s>]+)""",
+    re.IGNORECASE,
+)
 
 
 class AuthClient:
 
-    def __init__(self, username, password, iserv_url) -> None:
+    def __init__(
+        self, username, password, iserv_url, two_factor_code=None
+    ) -> None:
         self.username = username
         self._password = password
         self.iserv_url = iserv_url
+        self._two_factor_code = two_factor_code
         self._session = requests.Session()
         self._IServSAT = None
         self._IServSATId = None
@@ -26,15 +41,18 @@ class AuthClient:
         This method performs a POST request with the user's credentials to the
         IServ authentication URL and checks for common failure scenarios such as
         non-existent accounts or failed login attempts due to wrong credentials.
-        Upon successful login, it retrieves session cookies.
+        If the account uses two-factor authentication, the code passed as
+        `two_factor_code` is submitted. Upon successful login, it retrieves session cookies.
 
         Raises:
-            ValueError: If the account does not exist or the login fails.
+            AuthError: If the login fails or a two-factor code is missing or rejected.
             ConnectionError: If there is a problem establishing a connection.
         """
 
         try:
-            testIServResponse = self._session.head(f"https://{self.iserv_url}/iserv/")
+            testIServResponse = self._session.head(
+                f"https://{self.iserv_url}/iserv/", timeout=TIMEOUT
+            )
             if getenv("SKIP_ISERV_CHECK") != "1":
                 if (
                     testIServResponse.status_code != 302
@@ -45,12 +63,26 @@ class AuthClient:
                         "Could not validate IServ server. Set `SKIP_ISERV_CHECK` to 1 to skip this check."
                     )
 
+            # Load the login form first: it sets the session cookies and may
+            # contain hidden fields (e.g. a CSRF token) that must be sent back
+            login_url = f"https://{self.iserv_url}/iserv/auth/login"
+            login_page = self._follow_meta_refresh(
+                self._session.get(login_url, timeout=TIMEOUT)
+            )
+            login_form = self._find_form(login_page.text, "_password")
+
             # Prepare login credentials to send with POST request
-            login_data = {"_username": self.username, "_password": self._password}
+            login_data = {}
+            if login_form is not None:
+                login_data.update(self._hidden_fields(login_form))
+                login_url = urljoin(
+                    login_page.url, login_form.get("action") or login_page.url
+                )
+            login_data.update({"_username": self.username, "_password": self._password})
 
             # Submit login credentials and check response
-            login_response = self._session.post(
-                f"https://{self.iserv_url}/iserv/auth/login", data=login_data
+            login_response = self._follow_meta_refresh(
+                self._session.post(login_url, data=login_data, timeout=TIMEOUT)
             )
 
             # Check if the login has failed, usually due to incorrect credentials
@@ -59,46 +91,106 @@ class AuthClient:
                     "Login failed! Probably wrong username or password."
                 )
 
-        except requests.exceptions.ConnectionError as e:
+            # Accounts with two-factor authentication get a second form
+            two_factor_form = self._find_two_factor_form(login_response.text)
+            if two_factor_form is not None:
+                self._submit_two_factor_code(two_factor_form, login_response.url)
+
+            # Retrieve and store session cookies after successful login
+            self.get_cookies()
+
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+        ) as e:
             # Handle connection errors during the login process
             raise ConnectionError(f"Error establishing connection: {e}")
 
-        # Retrieve and store session cookies after successful login
-        self.get_cookies()
+    def _follow_meta_refresh(self, response, max_hops=5):
+        """Follows <meta http-equiv="refresh"> redirects, which IServ uses during login."""
+        for _ in range(max_hops):
+            match = _META_REFRESH.search(response.text)
+            if match is None:
+                break
+            target = urljoin(response.url, html.unescape(match.group(1)))
+            response = self._session.get(target, timeout=TIMEOUT)
+        return response
+
+    @staticmethod
+    def _find_form(page, field_name):
+        """Returns the first form containing an input whose name matches `field_name`."""
+        soup = BeautifulSoup(page, "html.parser")
+        for form in soup.find_all("form"):
+            if form.find("input", attrs={"name": field_name}):
+                return form
+        return None
+
+    @classmethod
+    def _find_two_factor_form(cls, page):
+        return cls._find_form(page, _DIGIT_FIELD) or cls._find_form(page, "otp")
+
+    @staticmethod
+    def _hidden_fields(form):
+        return {
+            field["name"]: field.get("value", "")
+            for field in form.find_all("input", attrs={"type": "hidden"})
+            if field.get("name")
+        }
+
+    def _submit_two_factor_code(self, form, page_url):
+        code = self._two_factor_code
+        if callable(code):
+            code = code()
+        if not code:
+            raise exceptions.AuthError(
+                "Two-factor authentication is enabled for this account. "
+                "Pass the current code as `two_factor_code`."
+            )
+        if not isinstance(code, str):
+            # An int would lose leading zeros
+            raise exceptions.AuthError(
+                'The two-factor code must be a string, e.g. "012345".'
+            )
+        code = code.replace(" ", "")
+        if not code.isdigit():
+            raise exceptions.AuthError("The two-factor code must only contain digits.")
+
+        # Hidden fields (e.g. the CSRF token) are sent back unchanged
+        data = self._hidden_fields(form)
+
+        # IServ splits the code into one field per digit and copies the
+        # whole code into the hidden field "otp" via JavaScript
+        digit_fields = {}
+        for field in form.find_all("input", attrs={"name": _DIGIT_FIELD}):
+            if field.get("type", "text") != "hidden":
+                position = int(_DIGIT_FIELD.search(field["name"]).group(1))
+                digit_fields[position] = field["name"]
+        if digit_fields:
+            if len(digit_fields) != len(code):
+                raise exceptions.AuthError(
+                    f"The two-factor code must have {len(digit_fields)} digits."
+                )
+            for position, name in digit_fields.items():
+                data[name] = code[position - 1]
+        if "otp" in data or not digit_fields:
+            data["otp"] = code
+
+        action = urljoin(page_url, form.get("action") or page_url)
+        response = self._follow_meta_refresh(
+            self._session.post(action, data=data, timeout=TIMEOUT)
+        )
+
+        if self._find_two_factor_form(response.text) is not None:
+            raise exceptions.AuthError("The two-factor code was rejected.")
+        logging.info("Two-factor code accepted")
 
     def get_cookies(self):
 
-        # First request to login page
-        login_url = f"https://{self.iserv_url}/iserv/auth/login"
-        # headers = {
-        #     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        #     "accept-language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
-        #     "cache-control": "max-age=0",
-        #     "sec-ch-ua": '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
-        #     "sec-ch-ua-mobile": "?0",
-        #     "sec-ch-ua-platform": '"Windows"',
-        #     "sec-fetch-dest": "document",
-        #     "sec-fetch-mode": "navigate",
-        #     "sec-fetch-site": "none",
-        #     "sec-fetch-user": "?1",
-        #     "upgrade-insecure-requests": "1",
-        #     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-        # }
-
-        # Second request to submit login credentials
-        login_data = {"_username": self.username, "_password": self._password}
-
-        response = self._session.post(login_url, data=login_data)
-
-        # Third request to home page
+        # Request to home page, which completes the login with a redirect
         home_url = f"https://{self.iserv_url}/iserv/"
-        response = self._session.get(home_url, allow_redirects=True)
-        match = re.search(r'url=([^"\s>]+)', response.text)
-
-        redirect_url = match.group(1).replace("amp;", "")  # type: ignore
-        # Follow redirect
-
-        response = self._session.get(redirect_url)
+        self._follow_meta_refresh(
+            self._session.get(home_url, allow_redirects=True, timeout=TIMEOUT)
+        )
 
         # Print out the cookies
         cookies = self._session.cookies.get_dict()

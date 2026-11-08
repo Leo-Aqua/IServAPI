@@ -16,16 +16,18 @@ class IServAPI:
 
     # Technical
 
-    def __init__(self, username, password, iserv_url):
+    def __init__(self, username, password, iserv_url, two_factor_code=None):
         """
         Initializes the credentials and URLs needed for accessing the IServ system.
 
         :param username: str - The username for the IServ system.
         :param password: str - The password for the IServ system.
         :param iserv_url: str - The URL of the IServ system.
+        :param two_factor_code: str or callable, optional - The current two-factor code, or a
+            function returning it (only called if the account uses two-factor authentication).
         :return: None
         """
-        core = Core(username, password, iserv_url)
+        core = Core(username, password, iserv_url, two_factor_code)
 
         self.username = core.username
         self._password = core._password

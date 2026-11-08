@@ -30,6 +30,17 @@ user_info = api.get_own_user_info()
 print(user_info)
 ```
 
+If two-factor authentication is enabled for your account, pass the current code, or a function that returns it (it is only called if IServ asks for a code):
+
+```python
+api = IServAPI(
+    username="YOUR_ISERV_USERNAME",
+    password="YOUR_ISERV_PASSWORD",
+    iserv_url="some_iserv_url.de",
+    two_factor_code=lambda: input("Two-factor code: "),
+)
+```
+
 
 ## Table of contents
 
