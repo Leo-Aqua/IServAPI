@@ -38,11 +38,11 @@ class AuthClient:
             if getenv("SKIP_ISERV_CHECK") != "1":
                 if (
                     testIServResponse.status_code != 302
-                    and "/iserv/auth/auth?_iserv_app_url"
-                    not in testIServResponse.headers
+                    or "/iserv/"
+                    not in testIServResponse.headers.get("Location", "")
                 ):
                     raise exceptions.AuthError(
-                        "Could not validate IServ Sever set `SKIP_ISERV_CHECK` to 1 to skip this check"
+                        "Could not validate IServ server. Set `SKIP_ISERV_CHECK` to 1 to skip this check."
                     )
 
             # Prepare login credentials to send with POST request

@@ -132,3 +132,134 @@ def test_send_email_smtp_exception(mock_smtp_ssl, mock_api):
         emails_module.send_email(
             receiver_email="target@example.com", subject="Fail Test", body="Boom"
         )
+
+
+def _json_response(data):
+    response = MagicMock()
+    response.json.return_value = data
+    return response
+
+
+MAIL_API = "https://school.iserv.de/iserv/mail/api/v2/account/testuser@school.iserv.de"
+
+
+def _client(mock_api):
+    """Emails client with the mail account already resolved (no lookup request)."""
+    client = Emails(api=mock_api)
+    client._mail_account = "testuser@school.iserv.de"
+    return client
+
+
+def test_get_mail_account_from_mail_app(mock_api):
+    response = MagicMock()
+    response.text = (
+        '<script id="php-data" type="application/json">'
+        + json.dumps({"accounts": {"valid": {"john.doe@example.com": {}}, "invalid": {}}})
+        + "</script>"
+    )
+    mock_api._session.get.return_value = response
+    client = Emails(api=mock_api)
+
+    assert client.get_mail_account() == "john.doe@example.com"
+    assert client.get_mail_account() == "john.doe@example.com"
+    mock_api._session.get.assert_called_once()  # cached
+
+
+def test_get_mail_account_fallback(mock_api):
+    response = MagicMock()
+    response.text = "<html></html>"
+    mock_api._session.get.return_value = response
+
+    assert Emails(api=mock_api).get_mail_account() == "testuser@school.iserv.de"
+
+
+def test_mailbox_id():
+    assert Emails.mailbox_id("INBOX") == "SU5CT1g"
+    assert Emails.mailbox_id("INBOX/Archiv") == "SU5CT1gvQXJjaGl2"
+
+
+def test_get_mailboxes(mock_api):
+    mock_api._session.get.return_value = _json_response({"mailboxes": {}})
+
+    result = _client(mock_api).get_mailboxes()
+
+    mock_api._session.get.assert_called_once_with(f"{MAIL_API}/mailbox")
+    assert result == {"mailboxes": {}}
+
+
+def test_get_mailboxes_custom_account(mock_api):
+    mock_api._session.get.return_value = _json_response({})
+
+    _client(mock_api).get_mailboxes(account="john.doe@example.com")
+
+    mock_api._session.get.assert_called_once_with(
+        "https://school.iserv.de/iserv/mail/api/v2/account/john.doe@example.com/mailbox"
+    )
+
+
+def test_get_messages(mock_api):
+    data = {"items": [{"id": {"uid": 1}}], "total": 1, "offset": 0}
+    mock_api._session.get.return_value = _json_response(data)
+
+    result = _client(mock_api).get_messages(limit=10)
+
+    mock_api._session.get.assert_called_once_with(
+        f"{MAIL_API}/message",
+        params={
+            "mailbox[]": "SU5CT1g",
+            "limit": 10,
+            "offset": 0,
+            "sort": "date",
+            "order": "desc",
+        },
+    )
+    assert result == data
+
+
+def test_get_messages_search_sets_search_fields(mock_api):
+    mock_api._session.get.return_value = _json_response({"items": []})
+
+    _client(mock_api).get_messages(query="invoice")
+
+    params = mock_api._session.get.call_args.kwargs["params"]
+    assert params["q"] == "invoice"
+    assert params["query_search_fields[]"] == ["subject", "from", "to"]
+
+
+def test_get_message(mock_api):
+    data = {"envelope": {"subject": "Hi"}, "content": {"plain": []}, "attachments": []}
+    mock_api._session.get.return_value = _json_response(data)
+
+    result = _client(mock_api).get_message(42, path="INBOX")
+
+    mock_api._session.get.assert_called_once_with(f"{MAIL_API}/mailbox/SU5CT1g/message/42")
+    assert result == data
+
+
+def test_get_mail_folders_is_deprecated(mock_api):
+    mock_api._session.get.return_value = _json_response({"mailboxes": {}})
+
+    with pytest.warns(DeprecationWarning):
+        result = _client(mock_api).get_mail_folders()
+
+    mock_api._session.get.assert_called_once_with(f"{MAIL_API}/mailbox")
+    assert result == {"mailboxes": {}}
+
+
+def test_get_messages_single_search_field(mock_api):
+    mock_api._session.get.return_value = _json_response({"items": []})
+
+    _client(mock_api).get_messages(query="invoice", search_fields="subject")
+
+    params = mock_api._session.get.call_args.kwargs["params"]
+    assert params["query_search_fields[]"] == ["subject"]
+
+
+def test_get_email_info_is_deprecated(mock_api):
+    mock_api._session.get.return_value = _json_response({"items": [], "total": 3})
+
+    with pytest.warns(DeprecationWarning):
+        result = _client(mock_api).get_email_info()
+
+    assert mock_api._session.get.call_args.args[0] == f"{MAIL_API}/message"
+    assert result["total"] == 3
