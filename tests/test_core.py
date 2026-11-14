@@ -27,7 +27,9 @@ def test_core_initialization(mock_auth_client):
     core_instance = Core(username, password, iserv_url)
 
     # Verify AuthClient was instantiated with the correct arguments
-    mock_auth_client.assert_called_once_with(username, password, iserv_url)
+    mock_auth_client.assert_called_once_with(
+        username, password, iserv_url, two_factor_code=None
+    )
 
     # Verify Core instance properties match what AuthClient exposed
     assert core_instance.username == username

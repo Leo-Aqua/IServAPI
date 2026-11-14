@@ -4,13 +4,15 @@ from logging.handlers import RotatingFileHandler
 
 
 class Core:
-    def __init__(self, username, password, iserv_url):
+    def __init__(self, username, password, iserv_url, two_factor_code=None):
         """
         Initializes the credentials and URLs needed for accessing the IServ system.
 
         :param username: str - The username for the IServ system.
         :param password: str - The password for the IServ system.
         :param iserv_url: str - The URL of the IServ system.
+        :param two_factor_code: str or callable, optional - The current two-factor code, or a
+            function returning it (only called if the account uses two-factor authentication).
         :return: None
         """
         self.username = username
@@ -19,7 +21,12 @@ class Core:
 
         # Log in to IServ
 
-        self.auth = AuthClient(self.username, self._password, self.iserv_url)
+        self.auth = AuthClient(
+            self.username,
+            self._password,
+            self.iserv_url,
+            two_factor_code=two_factor_code,
+        )
 
         self._session = self.auth._session
         self._IServSAT = self.auth._IServSAT

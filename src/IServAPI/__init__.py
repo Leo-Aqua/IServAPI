@@ -1,4 +1,6 @@
-from turtle import st
+from typing import Literal
+
+from .classes import AlarmType, Recurring
 
 from .core import Core
 from .profile import Profile
@@ -14,16 +16,18 @@ class IServAPI:
 
     # Technical
 
-    def __init__(self, username, password, iserv_url):
+    def __init__(self, username, password, iserv_url, two_factor_code=None):
         """
         Initializes the credentials and URLs needed for accessing the IServ system.
 
         :param username: str - The username for the IServ system.
         :param password: str - The password for the IServ system.
         :param iserv_url: str - The URL of the IServ system.
+        :param two_factor_code: str or callable, optional - The current two-factor code, or a
+            function returning it (only called if the account uses two-factor authentication).
         :return: None
         """
-        core = Core(username, password, iserv_url)
+        core = Core(username, password, iserv_url, two_factor_code)
 
         self.username = core.username
         self._password = core._password
@@ -188,6 +192,64 @@ class IServAPI:
 
     # Email
 
+    def get_mailboxes(self, account: str = None):
+        """
+        Retrieves all mailboxes (folders) of a mail account, including unread and total counts.
+
+        Args:
+            account (str, optional): The mail address of the account. Defaults to the own mail address.
+
+        Returns:
+            dict: A JSON object containing the mailboxes.
+        """
+        return self.emails.get_mailboxes(account)
+
+    def get_messages(
+        self,
+        path="INBOX",
+        limit=50,
+        offset=0,
+        sort="date",
+        order="desc",
+        query: str = None,
+        search_fields=("subject", "from", "to"),
+        account: str = None,
+    ):
+        """
+        Retrieves a list of messages from a mailbox.
+
+        Args:
+            path (str, optional): The mailbox path. Defaults to "INBOX".
+            limit (int, optional): The number of messages to retrieve. Defaults to 50.
+            offset (int, optional): The index of the first message. Defaults to 0.
+            sort (str, optional): The field to sort by. Defaults to "date".
+            order (str, optional): "asc" or "desc". Defaults to "desc".
+            query (str, optional): A search term. Defaults to None (no search).
+            search_fields (tuple, optional): The fields to search in when `query` is set.
+                Defaults to ("subject", "from", "to").
+            account (str, optional): The mail address of the account. Defaults to the own mail address.
+
+        Returns:
+            dict: A JSON object with "items" (the messages), "total" and "offset".
+        """
+        return self.emails.get_messages(
+            path, limit, offset, sort, order, query, search_fields, account
+        )
+
+    def get_message(self, uid, path="INBOX", account: str = None):
+        """
+        Retrieves a single message including its envelope, content and attachment list.
+
+        Args:
+            uid (int): The UID of the message.
+            path (str, optional): The mailbox path. Defaults to "INBOX".
+            account (str, optional): The mail address of the account. Defaults to the own mail address.
+
+        Returns:
+            dict: A JSON object with "envelope", "content" and "attachments".
+        """
+        return self.emails.get_message(uid, path, account)
+
     def get_emails(self, path="INBOX", length=50, start=0, order="date", dir="desc"):
         """
         Retrieves emails from a specified path with optional parameters for length, start, order, and direction.
@@ -301,18 +363,32 @@ class IServAPI:
         """
         return self.calendar.get_eventsources()
 
-    def get_events(self, start: str, end: str):
+    def get_calendar_appointments(self, calendar: str, start: str, end: str):
+        """Returns all events of a single calendar in the given timeframe
+
+        Args:
+            calendar (str): The calendar ID as returned by `get_eventsources()`
+            start (str): Start date
+            end (str): End date
+
+        Returns:
+            JSON: A list of events
+        """
+        return self.calendar.get_calendar_appointments(calendar, start, end)
+
+    def get_events(self, start: str, end: str, calendars: list = None):
         """Returns all events from all eventsources (Calendars) as a JSON object
 
         Args:
             start (str): Start date
             end (str): End date
+            calendars (list, optional): Calendar IDs to query. Defaults to all calendars.
 
         Returns:
-            JSON: A JSON object with the data
+            JSON: A list of events, each with a "calendar" key
         """
 
-        return self.calendar.get_events(start, end)
+        return self.calendar.get_events(start, end, calendars)
 
     def search_event(self, query: str, start: str, end: str):
         """Searches for events in all eventsources
