@@ -1,7 +1,15 @@
 import logging
 from .classes import *
-import dateutil
+import dateutil.parser
 from bs4 import BeautifulSoup
+
+
+def _start_timestamp(event: dict) -> float:
+    """Sort key: the start of an event as a POSIX timestamp (date-only and naive values in local time)."""
+    try:
+        return dateutil.parser.isoparse(str(event.get("start"))).timestamp()
+    except (ValueError, OverflowError):
+        return float("inf")
 
 
 class Calendar:
@@ -32,24 +40,60 @@ class Calendar:
         logging.info("Got eventsources")
         return eventsources
 
-    def get_events(self, start: str, end: str):
-        """Returns all events from all eventsources (Calendars) as a JSON object
+    def get_calendar_appointments(self, calendar: str, start: str, end: str):
+        """Returns all events of a single calendar in the given timeframe
 
         Args:
-            start (str): Start date
-            end (str): End date
+            calendar (str): The calendar ID as returned by `get_eventsources()`, e.g. "/user.name/home"
+            start (str): Start date in any form parsable by dateutil
+            end (str): End date in any form parsable by dateutil
 
         Returns:
-            JSON: A JSON object with the data
+            JSON: A list of events
         """
-
         events = self.api._session.get(
-            f"https://{self.api.iserv_url}/iserv/calendar/feed/calendar-multi",
+            f"https://{self.api.iserv_url}/iserv/calendar/api/calendar-appointments",
             params={
+                "cal": calendar,
                 "start": dateutil.parser.parse(start).strftime("%Y-%m-%d"),
                 "end": dateutil.parser.parse(end).strftime("%Y-%m-%d"),
             },
         ).json()
+        logging.debug(f"Got events of {calendar} from {start} to {end}")
+        return events
+
+    def get_events(self, start: str, end: str, calendars: list = None):
+        """Returns all events from all eventsources (Calendars) as a JSON object
+
+        Each event gets an additional "calendar" key with the ID of the calendar it belongs to.
+
+        Args:
+            start (str): Start date
+            end (str): End date
+            calendars (list, optional): Calendar IDs to query. Defaults to all
+                eventsources of type "cal" from `get_eventsources()`.
+
+        Returns:
+            JSON: A list of events sorted by start
+        """
+        if calendars is None:
+            calendars = [
+                source["id"]
+                for source in self.get_eventsources()
+                if source.get("type") == "cal"
+            ]
+
+        events = []
+        for calendar in calendars:
+            appointments = self.get_calendar_appointments(calendar, start, end)
+            if not isinstance(appointments, list):
+                logging.warning(f"Skipping calendar {calendar}: unexpected response")
+                continue
+            for event in appointments:
+                if isinstance(event, dict):
+                    event["calendar"] = calendar
+                    events.append(event)
+        events.sort(key=_start_timestamp)
 
         logging.info("Got calendar events")
         logging.debug(f"Got Calendar events from {start} to {end}")
