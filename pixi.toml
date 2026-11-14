@@ -1,0 +1,72 @@
+[workspace]
+authors = ["Leo Aqua <contact@leoaqua.de>"]
+channels = ["main", "r", "msys2"]
+name = "IServAPI"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+_libgcc_mutex = { version = "==0.1", build = "main" }
+_openmp_mutex = { version = "==5.1", build = "52_gnu" }
+beautifulsoup4 = { version = "==4.15.0", build = "py314h06a4308_0" }
+blas = { version = "==1.0", build = "mkl" }
+brotlicffi = { version = "==1.2.0.0", build = "py314h7354ed3_0" }
+bzip2 = { version = "==1.0.8", build = "h5eee18b_6" }
+ca-certificates = { version = "==2026.5.14", build = "h06a4308_0" }
+certifi = { version = "==2026.6.17", build = "py314h06a4308_0" }
+cffi = { version = "==2.0.0", build = "py314h4eded50_1" }
+charset-normalizer = { version = "==3.4.7", build = "py314h06a4308_0" }
+icu = { version = "==73.1", build = "h6a678d5_0" }
+idna = { version = "==3.18", build = "py314h06a4308_0" }
+intel-openmp = { version = "==2025.0.0", build = "h06a4308_1172" }
+ld_impl_linux-64 = { version = "==2.44", build = "h9e0c5a2_3" }
+libexpat = { version = "==2.8.2", build = "h7354ed3_1" }
+libffi = { version = "==3.4.8", build = "h06d3fd0_3" }
+libgcc = { version = "==15.2.0", build = "h69a1729_8" }
+libgcc-ng = { version = "==15.2.0", build = "h166f726_8" }
+libhwloc = { version = "==2.12.1", build = "default_hf1bbc79_1000" }
+libmpdec = { version = "==4.0.1", build = "h47b2149_0" }
+libstdcxx = { version = "==15.2.0", build = "h39759b7_8" }
+libstdcxx-ng = { version = "==15.2.0", build = "hc03a8fd_8" }
+libuuid = { version = "==1.41.5", build = "h5eee18b_0" }
+libxcb = { version = "==1.17.0", build = "h9b100fa_0" }
+libxml2 = { version = "==2.13.9", build = "h2c43086_0" }
+libzlib = { version = "==1.3.2", build = "h47b2149_0" }
+lz4-c = { version = "==1.9.4", build = "h7354ed3_5" }
+mkl = { version = "==2025.0.0", build = "h6d8faa4_942" }
+mkl-service = { version = "==2.7.2", build = "py314h365c7f6_0" }
+mkl_fft = { version = "==2.2.0", build = "py314hc849d88_0" }
+mkl_random = { version = "==1.4.1", build = "py314h973aee8_0" }
+ncurses = { version = "==6.5", build = "h7934f7d_0" }
+numpy = { version = "==2.5.1", build = "py314ha8834a8_0" }
+numpy-base = { version = "==2.5.1", build = "py314h7c74580_0" }
+openssl = { version = "==3.5.7", build = "h1b28b03_0" }
+pandas = { version = "==3.0.3", build = "py314h973aee8_0" }
+pip = { version = "==26.1.2", build = "pyh0d26453_0" }
+pthread-stubs = { version = "==0.3", build = "h0ce48e5_1" }
+pycparser = { version = "==3.0", build = "py314h06a4308_0" }
+pysocks = { version = "==1.7.1", build = "py314h06a4308_1" }
+python = { version = "==3.14.6", build = "h4bdf6f9_101_cp314" }
+python-dateutil = { version = "==2.9.0post0", build = "py314h06a4308_2" }
+python_abi = { version = "==3.14", build = "4_cp314" }
+readline = { version = "==8.3", build = "hc2a1206_0" }
+requests = { version = "==2.34.2", build = "py314h06a4308_0" }
+six = { version = "==1.17.0", build = "py314h06a4308_0" }
+soupsieve = { version = "==2.8.4", build = "py314h06a4308_0" }
+sqlite = { version = "==3.53.2", build = "h795bf6d_0" }
+tbb = { version = "==2022.3.0", build = "h698db13_0" }
+tbb-devel = { version = "==2022.3.0", build = "h698db13_0" }
+tk = { version = "==8.6.15", build = "h54e0aa7_0" }
+typing-extensions = { version = "==4.16.0", build = "py314h06a4308_0" }
+typing_extensions = { version = "==4.16.0", build = "py314h06a4308_0" }
+tzdata = { version = "==2026c", build = "he532380_0" }
+urllib3 = { version = "==2.7.0", build = "py314h06a4308_0" }
+xorg-libx11 = { version = "==1.8.12", build = "h9b100fa_1" }
+xorg-libxau = { version = "==1.0.12", build = "h9b100fa_0" }
+xorg-libxdmcp = { version = "==1.1.5", build = "h9b100fa_0" }
+xorg-xorgproto = { version = "==2024.1", build = "h47b2149_2" }
+xz = { version = "==5.8.2", build = "h448239c_0" }
+zlib = { version = "==1.3.2", build = "h47b2149_0" }
+zstd = { version = "==1.5.7", build = "h11fc155_0" }

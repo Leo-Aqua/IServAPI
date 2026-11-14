@@ -8,4 +8,7 @@ dist
 experiments
 .coverage
 coverage.json
+.vscode# pixi environments
+.pixi/*
+!.pixi/config.toml
 .vscode
